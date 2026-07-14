@@ -1,0 +1,7 @@
+name = "pocket-abyss-rooms"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "ROOMS"
+id = "ac61db7b89ca40feadba253be044c642"

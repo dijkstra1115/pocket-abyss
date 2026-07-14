@@ -12,6 +12,43 @@
   if (location.hash.includes('dbg=1')) {
     document.title = `${window.innerWidth}x${window.innerHeight} dpr${window.devicePixelRatio}`;
   }
+  /* 除錯：#roomui 用假資料展示房間視圖（不打網路） */
+  if (location.hash.includes('roomui')) {
+    setTimeout(() => {
+      Game.state.settings.playerName = '小明';
+      Game.state.settings.roomCode = 'DEMO42';
+      UI.roomData = {
+        v: 1, code: 'DEMO42', seed: 1,
+        boss: { z: 1, lv: 30, hp: 5000000, atk: 800, itv: 16 },
+        players: [
+          { n: '小明', h: Raid.mySnapshots(), dmg: 1234560 },
+          { n: '阿華', h: Raid.mySnapshots(), dmg: 987650 },
+        ],
+        pool: 8500000, remaining: 6277790,
+        runs: [{ n: '阿華', seed: 99, dmg: 987650, ts: 0 }, { n: '小明', seed: 98, dmg: 634560, ts: 0 }],
+      };
+      document.querySelector('#tabs button[data-tab=raid]').click();
+    }, 2500);
+  }
+  /* 除錯：#roomtest 從瀏覽器完整走一遍雲端房間流程（開房→加入→模擬→回寫→讀回） */
+  if (location.hash.includes('roomtest')) {
+    setTimeout(async () => {
+      try {
+        const room = await Raid.createRoom(10, '甲');
+        await Raid.joinRoom(room.code, '乙');
+        const seed = 424242;
+        const rm = await Raid.getRoom(room.code);
+        const res = Raid.simulate(Raid.roomInput(rm, seed));
+        const after = await Raid.postDamage(room.code, '乙', res.teamDmg[1], seed);
+        Game.state.settings.roomCode = room.code;
+        UI.roomData = after;
+        document.querySelector('#tabs button[data-tab=raid]').click();
+        document.title = `ROOMTEST ok code=${after.code} pool=${after.pool} remaining=${after.remaining} players=${after.players.length} runs=${after.runs.length}`;
+      } catch (e) {
+        document.title = 'ROOMTEST fail ' + e.message;
+      }
+    }, 2500);
+  }
   /* 除錯：#raiddemo 用自己的隊伍左右互搏開一場共鬥（視覺驗證用） */
   if (location.hash.includes('raiddemo')) {
     setTimeout(() => {

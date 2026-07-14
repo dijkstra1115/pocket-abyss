@@ -114,6 +114,7 @@ const UI = {
     };
     if (Game.state.settings.mini) document.body.classList.add('mini');
     this.applyScale();
+    if (Game.state.settings.roomCode) this.loadRoom();
     this.renderTop();
     this.renderPanel();
   },
@@ -457,16 +458,32 @@ const UI = {
   /* ============ 共鬥（Prompt 3：六人同框） ============ */
   raid: null,   /* {full, st, myTeam, speed, acc, reportCode, fx:[], doneNotified} */
 
-  startRaid(full, myTeam, reportCode) {
+  startRaid(full, myTeam, reportCode, cloud) {
     this.raid = {
       full, st: Raid.init(full), myTeam,
       speed: 1, acc: 0, reportCode: reportCode || null,
+      cloud: cloud || null, posted: false,
       fx: full.teams.flatMap(t => t.h.map(() => ({ lunge: 0, flash: 0 }))),
       bossFlash: 0, doneNotified: false,
     };
     this.dmgTexts.length = 0;
     this.parts.length = 0;
     this.renderPanel();
+  },
+
+  /* 雲端出戰結束：把我方這輪傷害回寫房間 */
+  postRaidResult(R) {
+    if (!R.cloud || R.posted) return;
+    R.posted = true;
+    let myDmg = 0;
+    for (const h of R.st.heroes) if (h.team === R.myTeam) myDmg += h.dmg;
+    Raid.postDamage(R.cloud.code, Game.state.settings.playerName, myDmg, R.cloud.seed)
+      .then(room => {
+        this.roomData = room;
+        this.toast(`已回報傷害 ${Game.fmt(myDmg / 10)}`);
+        if (this.raid === R) this.renderPanel();
+      })
+      .catch(() => this.toast('傷害回報失敗，請稍後在房間按「重新整理」'));
   },
 
   endRaid() {
@@ -542,6 +559,7 @@ const UI = {
       }
       if (sim.done && !R.doneNotified) {
         R.doneNotified = true;
+        this.postRaidResult(R);
         this.renderPanel();
       }
     }
@@ -667,6 +685,11 @@ const UI = {
     if (['party', 'ascend', 'achv', 'core', 'forge'].includes(this.tab)) this.renderPanel();
     /* 共鬥戰鬥中：即時更新傷害統計（此狀態無輸入框） */
     if (this.tab === 'raid' && this.raid && !this.raid.st.done) this.renderPanel();
+    /* 雲端房間：每 10 秒輪詢共享血池 */
+    if (this.tab === 'raid' && !this.raid && Game.state.settings.roomCode) {
+      this._pollN++;
+      if (this._pollN % 5 === 0) this.loadRoom();
+    }
   },
 
   /* ---------- 隊伍 ---------- */
@@ -1187,12 +1210,58 @@ const UI = {
     for (let f = maxB; f >= 10 && floors.length < 8; f -= 10) floors.push(f);
     const opts = floors.map(f =>
       `<option value="${f}">Lv${f} ${DATA.zones[Game.zoneIdx(f)].boss.name}</option>`).join('');
-    let html = `<div class="section-title">和朋友同框並肩打共鬥王</div>
-      <div class="hint">① 你按「產生挑戰碼」傳給朋友<br>② 朋友貼進下方框開戰，打完把「戰報碼」傳回<br>③ 你貼上戰報碼重播 —— 兩邊看到的是逐幀相同的戰鬥</div>
-      <div class="set-row" style="margin-top:8px"><span>我的名字</span>
+
+    let html = `<div class="section-title">和朋友同框並肩打共鬥王</div>`;
+
+    /* 雲端房間視圖 */
+    if (st.settings.roomCode && this.roomData) {
+      const rm = this.roomData;
+      const pct = rm.pool > 0 ? rm.remaining / rm.pool : 0;
+      const bossName = DATA.zones[rm.boss.z].boss.name;
+      const cleared = rm.remaining <= 0;
+      html += `<div class="raid-box">
+        房碼 <b>${rm.code}</b>（把它給朋友，7天有效）<br>
+        ${bossName} Lv${rm.boss.lv} — 共同血池 ${(pct * 100).toFixed(1)}%<br>
+        <span class="hint">${Game.fmt(rm.remaining / 10)} / ${Game.fmt(rm.pool / 10)}${rm.players.length < 2 ? ' · 等第二位參戰（血池將×1.7）' : ''}</span><br>` +
+        rm.players.map(pl =>
+          `<span style="color:${pl.n === st.settings.playerName ? '#7dd87d' : '#c9c9d8'}">${pl.n === st.settings.playerName ? '★' : '◇'} ${pl.n} — 累積 ${Game.fmt(pl.dmg / 10)}</span>`
+        ).join('<br>') +
+        `${cleared ? '<br>🎉 共鬥王已被你們擊破！' : ''}</div>
+        <div class="btn-row">
+          <button id="room-fight" class="accent" ${cleared ? 'disabled' : ''}>⚔ 出戰（60秒）</button>
+          <button id="room-refresh">重新整理</button>
+          <button id="room-copy">複製房碼</button>
+          <button id="room-leave" class="warn">離開</button>
+        </div>`;
+      const replays = (rm.runs || []).slice(0, 3);
+      if (replays.length) {
+        html += `<div class="section-title">最近出戰（可重播觀戰）</div>` +
+          replays.map((r, i) =>
+            `<div class="forge-op"><div>${r.n} 造成 ${Game.fmt(r.dmg / 10)}</div>
+             <button data-replay="${i}">重播</button></div>`).join('');
+      }
+      return html;
+    }
+    if (st.settings.roomCode) {
+      html += `<div class="raid-box">連線房間 ${st.settings.roomCode} 中…</div>
+        <div class="btn-row"><button id="room-refresh">重新整理</button>
+        <button id="room-leave" class="warn">離開房間</button></div>`;
+      return html;
+    }
+
+    /* 尚未進房：開房 / 加入 */
+    html += `<div class="set-row" style="margin-top:6px"><span>我的名字</span>
         <input id="raid-name" maxlength="8" value="${st.settings.playerName}"></div>
       <div class="set-row"><span>挑戰的王</span><select id="raid-boss">${opts}</select></div>
-      <div class="btn-row"><button id="raid-make" class="accent">產生挑戰碼（帶上我的隊伍）</button></div>
+      <div class="btn-row"><button id="room-make" class="accent">開雲端房（拿房碼給朋友）</button></div>
+      <div class="set-row" style="margin-top:4px"><span>朋友給的房碼</span>
+        <span><input id="room-code" maxlength="6" style="width:80px;text-transform:uppercase" placeholder="ABC123">
+        <button id="room-join" class="accent">加入</button></span></div>
+      <div class="hint">兩人共同磨同一條王血池（兩人時血池×1.7）；
+      各自出戰、傷害即時累積，雙方都看得到彼此貢獻。</div>
+      <details style="margin-top:8px" ${this.raidPreview ? 'open' : ''}><summary class="hint" style="cursor:pointer">▸ 不用網路的碼交換模式（挑戰碼 / 戰報碼）</summary>
+      <div class="hint">① 產生挑戰碼傳給朋友 ② 朋友貼上開戰後把「戰報碼」傳回 ③ 你貼上重播出逐幀相同的戰鬥</div>
+      <div class="btn-row" style="margin-top:4px"><button id="raid-make">產生挑戰碼（帶上我的隊伍）</button></div>
       <textarea id="raid-out" readonly placeholder="挑戰碼會出現在這裡，複製傳給朋友"></textarea>
       <div class="section-title">貼上朋友的挑戰碼 / 戰報碼</div>
       <textarea id="raid-in" placeholder="貼在這裡"></textarea>
@@ -1206,6 +1275,7 @@ const UI = {
         `</div><div class="btn-row">
         <button id="raid-fight" class="accent">${pv.teams.length === 1 ? '⚔ 並肩開戰（加入我的隊伍）' : '▶ 重播這場戰報'}</button></div>`;
     }
+    html += '</details>';
     return html;
   },
 
@@ -1218,6 +1288,7 @@ const UI = {
       if (sk) sk.onclick = () => {
         while (!R.st.done) { Raid.stepTick(R.st); R.st.events.length = 0; }
         R.doneNotified = true;
+        this.postRaidResult(R);
         this.dmgTexts.length = 0; this.parts.length = 0;
         this.renderPanel();
       };
@@ -1233,19 +1304,80 @@ const UI = {
       };
       return;
     }
-    p.querySelector('#raid-name').onchange = (e) => {
+    /* ---- 雲端房間 ---- */
+    const myName = () => Game.state.settings.playerName;
+    const mk = p.querySelector('#room-make');
+    if (mk) mk.onclick = async () => {
+      mk.disabled = true;
+      try {
+        const room = await Raid.createRoom(+p.querySelector('#raid-boss').value, myName());
+        Game.state.settings.roomCode = room.code;
+        this.roomData = room;
+        Game.save();
+        this.toast(`房間 ${room.code} 已建立，把房碼給朋友！`);
+        this.renderPanel();
+      } catch (e) { this.toast('開房失敗：' + e.message); mk.disabled = false; }
+    };
+    const jn = p.querySelector('#room-join');
+    if (jn) jn.onclick = async () => {
+      const code = p.querySelector('#room-code').value.trim().toUpperCase();
+      if (code.length !== 6) { this.toast('房碼是 6 碼英數字'); return; }
+      jn.disabled = true;
+      try {
+        const room = await Raid.joinRoom(code, myName());
+        Game.state.settings.roomCode = room.code;
+        this.roomData = room;
+        Game.save();
+        this.toast('已加入房間！');
+        this.renderPanel();
+      } catch (e) {
+        this.toast(e.message === 'room full' ? '房間已滿（兩人）' : '加入失敗：' + e.message);
+        jn.disabled = false;
+      }
+    };
+    const rf = p.querySelector('#room-refresh');
+    if (rf) rf.onclick = () => { this.loadRoom(); this.toast('已更新'); };
+    const rc = p.querySelector('#room-copy');
+    if (rc) rc.onclick = () => { this.copyText(Game.state.settings.roomCode); this.toast('房碼已複製'); };
+    const lv = p.querySelector('#room-leave');
+    if (lv) lv.onclick = () => {
+      Game.state.settings.roomCode = '';
+      this.roomData = null;
+      Game.save();
+      this.renderPanel();
+    };
+    const ft = p.querySelector('#room-fight');
+    if (ft) ft.onclick = () => {
+      const rm = this.roomData;
+      if (!rm) return;
+      const seed = Raid.newRoundSeed();
+      const myIdx = rm.players.findIndex(pl => pl.n === myName());
+      if (myIdx < 0) { this.toast('名字與房內參戰者不符'); return; }
+      this.startRaid(Raid.roomInput(rm, seed), myIdx, null, { code: rm.code, seed });
+    };
+    p.querySelectorAll('[data-replay]').forEach(b => b.onclick = () => {
+      const rm = this.roomData;
+      const run = rm && (rm.runs || [])[+b.dataset.replay];
+      if (!run) return;
+      const myIdx = rm.players.findIndex(pl => pl.n === myName());
+      this.startRaid(Raid.roomInput(rm, run.seed), Math.max(0, myIdx), null, null);
+    });
+
+    /* ---- 碼交換模式 ---- */
+    const nameIn = p.querySelector('#raid-name');
+    if (nameIn) nameIn.onchange = (e) => {
       Game.state.settings.playerName = e.target.value.trim() || '勇者';
     };
-    p.querySelector('#raid-make').onclick = () => {
-      const lv = +p.querySelector('#raid-boss').value;
-      const name = Game.state.settings.playerName;
-      const code = Raid.encode(Raid.newChallenge(lv, name));
+    const make = p.querySelector('#raid-make');
+    if (make) make.onclick = () => {
+      const code = Raid.encode(Raid.newChallenge(+p.querySelector('#raid-boss').value, myName()));
       const ta = p.querySelector('#raid-out');
       ta.value = code;
       ta.select();
       try { document.execCommand('copy'); this.toast('挑戰碼已複製，傳給朋友吧！'); } catch (e) { /* 忽略 */ }
     };
-    p.querySelector('#raid-load').onclick = () => {
+    const load = p.querySelector('#raid-load');
+    if (load) load.onclick = () => {
       const obj = Raid.decode(p.querySelector('#raid-in').value);
       if (!obj) { this.toast('這不是有效的挑戰碼/戰報碼'); return; }
       if (obj.teams.length > 2) { this.toast('隊伍數量異常'); return; }
@@ -1258,15 +1390,43 @@ const UI = {
     if (fight) fight.onclick = () => {
       const pv = this.raidPreview;
       this.raidPreview = null;
-      const myName = Game.state.settings.playerName;
       if (pv.teams.length === 1) {
-        const full = Raid.joinChallenge(pv, myName);
+        const full = Raid.joinChallenge(pv, myName());
         this.startRaid(full, 1, Raid.encode(full));
       } else {
-        const myIdx = pv.teams.findIndex(t => t.n === myName);
+        const myIdx = pv.teams.findIndex(t => t.n === myName());
         this.startRaid(pv, myIdx >= 0 ? myIdx : 0, null);
       }
     };
+  },
+
+  /* 雲端房間狀態 */
+  roomData: null,
+  _pollN: 0,
+
+  loadRoom() {
+    const code = Game.state.settings.roomCode;
+    if (!code) return;
+    Raid.getRoom(code).then(room => {
+      this.roomData = room;
+      if (this.tab === 'raid' && !this.raid) this.renderPanel();
+    }).catch(e => {
+      if (String(e.message).includes('not found')) {
+        Game.state.settings.roomCode = '';
+        this.roomData = null;
+        this.toast('房間已過期或不存在');
+        if (this.tab === 'raid' && !this.raid) this.renderPanel();
+      }
+    });
+  },
+
+  copyText(str) {
+    const ta = document.createElement('textarea');
+    ta.value = str;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* 忽略 */ }
+    ta.remove();
   },
 
   /* ---------- 成就 ---------- */

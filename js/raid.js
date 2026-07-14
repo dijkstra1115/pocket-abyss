@@ -201,6 +201,47 @@ const Raid = {
     };
   },
 
+  /* ---------- Prompt 4：雲端房間（Cloudflare Worker + KV） ---------- */
+  API: 'https://pocket-abyss-rooms.style78432.workers.dev',
+
+  async api(path, body) {
+    const res = await fetch(this.API + path, body ? {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    } : undefined);
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data && data.err) || ('HTTP ' + res.status));
+    return data;
+  },
+
+  createRoom(raidLv, name) {
+    return this.api('/room', {
+      v: 1,
+      seed: (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 1,
+      boss: this.bossConfig(raidLv),
+      player: { n: name, h: this.mySnapshots() },
+    });
+  },
+  getRoom(code) { return this.api('/room/' + encodeURIComponent(code)); },
+  joinRoom(code, name) {
+    return this.api('/room/' + encodeURIComponent(code) + '/join', { n: name, h: this.mySnapshots() });
+  },
+  postDamage(code, name, dmg, seed) {
+    return this.api('/room/' + encodeURIComponent(code) + '/damage', { n: name, dmg, seed });
+  },
+
+  /* 由房間狀態組出一場 replay input（雙方裝置以同 seed 組出即逐幀一致） */
+  roomInput(room, seed) {
+    return {
+      v: RAID_VERSION, seed: seed >>> 0, boss: room.boss,
+      teams: room.players.map(p => ({ n: p.n, h: p.h })),
+    };
+  },
+  newRoundSeed() {
+    return (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 1;
+  },
+
   /* 跨環境 determinism 測試用的固定輸入（Node 與瀏覽器都跑它比對雜湊） */
   testInput() {
     const mk = (c, atk, hp, def, itv, cd, crit) => ({
