@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>口袋深淵 Pocket Abyss</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%230d0b14'/><rect x='5' y='3' width='6' height='6' fill='%239d7dff'/><rect x='6' y='10' width='4' height='3' fill='%2357e6e6'/></svg>">
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div id="zone-line">
+      <span id="zone-name">苔蘚洞窟</span>
+      <span id="floor-label">第 1 層</span>
+      <span id="diff-label" class="tag">普通</span>
+    </div>
+    <div id="top-btns">
+      <button id="adv-btn" title="自動推進開關">推進中</button>
+      <button id="mini-btn" title="迷你模式">▁</button>
+    </div>
+  </header>
+
+  <canvas id="scene" width="135" height="60"></canvas>
+
+  <div id="status-row">
+    <span id="wave-pips"></span>
+    <span class="res"><i class="ic ic-gold"></i><b id="res-gold">0</b></span>
+    <span class="res"><i class="ic ic-dust"></i><b id="res-dust">0</b></span>
+    <span class="res"><i class="ic ic-ember"></i><b id="res-ember">0</b></span>
+  </div>
+
+  <nav id="tabs">
+    <button data-tab="party" class="on">隊伍</button>
+    <button data-tab="bag">背包</button>
+    <button data-tab="forge">鍛造</button>
+    <button data-tab="core">星核</button>
+    <button data-tab="ascend">昇華</button>
+    <button data-tab="achv">成就</button>
+    <button data-tab="set">設定</button>
+  </nav>
+
+  <main id="panel"></main>
+
+  <div id="toasts"></div>
+  <div id="modal-root" class="hidden"></div>
+</div>
+<script src="js/sprites.js"></script>
+<script src="js/data.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
