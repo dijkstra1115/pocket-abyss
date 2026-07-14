@@ -12,6 +12,20 @@
   if (location.hash.includes('dbg=1')) {
     document.title = `${window.innerWidth}x${window.innerHeight} dpr${window.devicePixelRatio}`;
   }
+  /* 除錯：#raiddemo 用自己的隊伍左右互搏開一場共鬥（視覺驗證用） */
+  if (location.hash.includes('raiddemo')) {
+    setTimeout(() => {
+      const ch = Raid.newChallenge(Math.max(10, Math.floor(Game.state.maxFloorEver / 10) * 10), '我');
+      const full = Raid.joinChallenge(ch, '鏡像隊友');
+      document.querySelector('#tabs button[data-tab=raid]').click();
+      UI.startRaid(full, 1, null);
+    }, 2500);
+  }
+  /* 除錯：#raidtest 跑固定共鬥輸入、雜湊寫進標題（與 Node 比對跨環境一致性） */
+  if (location.hash.includes('raidtest')) {
+    const r = Raid.simulate(Raid.testInput());
+    document.title = 'RAIDHASH ' + r.hash + ' ticks ' + r.ticks;
+  }
   /* 除錯：#scale=0.7 強制介面縮放 */
   const hashScale = location.hash.match(/scale=([\d.]+)/);
   if (hashScale) { Game.state.settings.uiScale = +hashScale[1]; UI.applyScale(); }

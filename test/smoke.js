@@ -5,16 +5,16 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const ctx = { console, Math, Date, JSON, Object, Array, String, Number, Infinity, NaN };
+const ctx = { console, Math, Date, JSON, Object, Array, String, Number, Infinity, NaN, atob, btoa };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['js/data.js', 'js/game.js']) {
+for (const f of ['js/data.js', 'js/game.js', 'js/raid.js']) {
   const src = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   vm.runInContext(src, ctx, { filename: f });
 }
 
 /* 頂層 const 不會掛在 sandbox 物件上，改由 context 內取回參照 */
-const { Game, DATA } = vm.runInContext('({ Game, DATA })', ctx);
+const { Game, DATA, Raid } = vm.runInContext('({ Game, DATA, Raid })', ctx);
 
 function assert(cond, msg) {
   if (!cond) { console.error('FAIL: ' + msg); process.exitCode = 1; }
@@ -143,6 +143,36 @@ assert(s.floor > Game.startFloor(), `昇華後能繼續推進 (${s.floor})`);
 /* --- 深層數值不溢出 --- */
 const deep = Game.mobStats(700, 'normal', true);
 assert(isFinite(deep.hp) && isFinite(deep.atk), `深層(700F)數值有限 hp=${deep.hp.toExponential(2)}`);
+
+/* ===== 共鬥引擎（deterministic）===== */
+console.log('');
+const tIn = Raid.testInput();
+const r0 = Raid.simulate(tIn);
+assert(r0.ticks > 0 && r0.teamDmg[0] > 0 && r0.teamDmg[1] > 0,
+  `共鬥模擬有效 (ticks=${r0.ticks} 勝=${r0.win} A傷=${r0.teamDmg[0]} B傷=${r0.teamDmg[1]})`);
+
+/* Determinism：同一輸入連跑 1000 次，全程狀態雜湊完全一致 */
+let same = true;
+for (let i = 0; i < 1000; i++) {
+  if (Raid.simulate(tIn).hash !== r0.hash) { same = false; break; }
+}
+assert(same, `共鬥 1000 次重跑雜湊一致 (hash=${r0.hash})`);
+console.log(`CROSS-ENV-HASH ${r0.hash}`); /* 供瀏覽器端比對 */
+
+/* 序列化 round-trip：解碼後重播結果一致 */
+const enc = Raid.encode(tIn);
+const dec = Raid.decode(enc);
+assert(dec && JSON.stringify(dec) === JSON.stringify(tIn), `挑戰碼 round-trip 一致 (${enc.length} bytes)`);
+assert(Raid.simulate(dec).hash === r0.hash, '解碼後重播雜湊一致');
+assert(Raid.decode('garbage!!') === null, '非法挑戰碼回傳 null');
+
+/* 真實流程：用目前遊戲狀態開房 → 加入 → 兩端重播一致 */
+const ch = Raid.newChallenge(20, '房主');
+assert(ch.teams.length === 1 && ch.teams[0].h.length === Game.state.party.length, '開房快照');
+const full = Raid.joinChallenge(Raid.decode(Raid.encode(ch)), '隊友');
+const rA = Raid.simulate(full);
+const rB = Raid.simulate(Raid.decode(Raid.encode(full)));
+assert(rA.hash === rB.hash, `雙端重播戰報一致 (雙方傷害 ${rA.teamDmg.map(d => Game.fmt(d / 10)).join(' / ')})`);
 
 console.log(`\n模擬總時長 ${(simSec / 3600).toFixed(1)} 小時，事件佇列 ${Game.events.length} 筆`);
 console.log(process.exitCode ? '\n=== 有測試失敗 ===' : '\n=== 煙霧測試全部通過 ===');

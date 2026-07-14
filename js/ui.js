@@ -151,6 +151,8 @@ const UI = {
   /* ============ 事件佇列 → 動畫與提示 ============ */
   drain() {
     for (const e of Game.events) {
+      /* 共鬥播放中：主遊戲照跑，但其視覺特效不疊到共鬥畫面上（提示照發） */
+      if (this.raid && ['hit', 'kill', 'heal', 'shieldUp', 'atk', 'skill'].includes(e.k)) continue;
       switch (e.k) {
         case 'hit': {
           const fx = e.side === 'mob' ? this.mobFx : this.heroFx;
@@ -296,6 +298,7 @@ const UI = {
   },
 
   renderScene(dt, t) {
+    if (this.raid) return this.renderRaidScene(dt, t);
     const ctx = this.ctx, b = Game.battle, st = Game.state;
     if (!ctx || !b) return;
     const zone = Game.zoneOf(st.floor);
@@ -392,7 +395,19 @@ const UI = {
       ctx.fillRect(pos.x, y - 3, Math.max(0, Math.round(bw * m.hp / m.max)), 1);
     }
 
-    /* 粒子與投射物 */
+    this.drawParticles(ctx, dt);
+
+    /* 休整倒數 */
+    if (b.pauseT > 0.7) {
+      Sprites.text(ctx, '...', 64, 20, '#8a80a0');
+    }
+
+    this.drawDmgTexts(ctx, dt);
+
+    ctx.restore();
+  },
+
+  drawParticles(ctx, dt) {
     for (let i = this.parts.length - 1; i >= 0; i--) {
       const p = this.parts[i];
       p.t += dt;
@@ -424,13 +439,9 @@ const UI = {
       ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
     }
     if (this.parts.length > 180) this.parts.splice(0, this.parts.length - 180);
+  },
 
-    /* 休整倒數 */
-    if (b.pauseT > 0.7) {
-      Sprites.text(ctx, '...', 64, 20, '#8a80a0');
-    }
-
-    /* 浮動數字 */
+  drawDmgTexts(ctx, dt) {
     for (let i = this.dmgTexts.length - 1; i >= 0; i--) {
       const d = this.dmgTexts[i];
       d.t -= dt;
@@ -441,7 +452,174 @@ const UI = {
       Sprites.text(ctx, d.str, Math.min(134 - w, Math.max(1, Math.round(d.x - w / 2))), Math.round(d.y), d.color, sc);
     }
     if (this.dmgTexts.length > 14) this.dmgTexts.splice(0, this.dmgTexts.length - 14);
+  },
 
+  /* ============ 共鬥（Prompt 3：六人同框） ============ */
+  raid: null,   /* {full, st, myTeam, speed, acc, reportCode, fx:[], doneNotified} */
+
+  startRaid(full, myTeam, reportCode) {
+    this.raid = {
+      full, st: Raid.init(full), myTeam,
+      speed: 1, acc: 0, reportCode: reportCode || null,
+      fx: full.teams.flatMap(t => t.h.map(() => ({ lunge: 0, flash: 0 }))),
+      bossFlash: 0, doneNotified: false,
+    };
+    this.dmgTexts.length = 0;
+    this.parts.length = 0;
+    this.renderPanel();
+  },
+
+  endRaid() {
+    this.raid = null;
+    this.dmgTexts.length = 0;
+    this.parts.length = 0;
+    this.renderPanel();
+  },
+
+  raidHeroPos(h) {
+    const mine = h.team === this.raid.myTeam;
+    return mine
+      ? { x: 4 + h.idx * 19, y: 54 - 12 }    /* 我方前排 */
+      : { x: 13 + h.idx * 19, y: 47 - 12 };  /* 隊友後排（略高、錯位） */
+  },
+
+  raidEvent(e) {
+    const R = this.raid, sim = R.st;
+    const bossC = { x: 112, y: 42 };
+    if (e.k === 'hit') {
+      const h = sim.heroes[e.h];
+      const mine = h.team === R.myTeam;
+      const cc = DATA.classes[h.c];
+      R.bossFlash = 0.08;
+      if (R.fx[e.h]) R.fx[e.h].lunge = 0.15;
+      this.sparks(bossC.x + (e.h % 3) * 3 - 3, bossC.y - (e.h % 2) * 5,
+        e.crit ? 8 : 3, h.c === 'mage' ? FX_FIRE : FX_SPARK, e.crit ? 40 : 24);
+      this.dmgTexts.push({
+        x: 100 + (e.h % 3) * 8, y: 26 - Math.floor(e.h / 2) * 5, t: 0.8,
+        str: Game.fmt(Math.max(1, e.amt / 10)),
+        color: mine ? cc.color : '#c9c9d8',
+        scale: e.crit ? 2 : 1,
+      });
+      if (e.crit) this.shake(1, 0.08);
+    } else if (e.k === 'bhit') {
+      const pos = this.raidHeroPos(sim.heroes[e.t]);
+      if (R.fx[e.t]) { R.fx[e.t].flash = 0.12; }
+      this.sparks(pos.x + 5, pos.y + 6, 4, FX_BLOOD, 22);
+      this.dmgTexts.push({
+        x: pos.x + 5, y: pos.y - 4, t: 0.8,
+        str: Game.fmt(Math.max(1, e.amt / 10)), color: '#ff7a7a',
+      });
+    } else if (e.k === 'heal') {
+      const pos = this.raidHeroPos(sim.heroes[e.t]);
+      this.rise(pos.x + 5, pos.y + 6, 3, FX_HEAL);
+    } else if (e.k === 'skill') {
+      const h = sim.heroes[e.h];
+      const pos = this.raidHeroPos(h);
+      if (R.fx[e.h]) R.fx[e.h].lunge = 0.28;
+      this.ring(pos.x + 5, pos.y + 6, DATA.classes[h.c].color);
+    } else if (e.k === 'down') {
+      const pos = this.raidHeroPos(sim.heroes[e.t]);
+      this.sparks(pos.x + 5, pos.y + 6, 8, FX_SMOKE, 26);
+    }
+  },
+
+  renderRaidScene(dt, t) {
+    const ctx = this.ctx, R = this.raid;
+    if (!ctx || !R) return;
+    const sim = R.st;
+
+    /* 固定步長推進（渲染只是播放，不影響邏輯結果） */
+    if (!sim.done) {
+      R.acc += dt * R.speed;
+      const step = 1 / RAID_TPS;
+      let guard = 0;
+      while (R.acc >= step && guard++ < 60) {
+        R.acc -= step;
+        Raid.stepTick(sim);
+        for (const e of sim.events) this.raidEvent(e);
+        sim.events.length = 0;
+        if (sim.done) break;
+      }
+      if (sim.done && !R.doneNotified) {
+        R.doneNotified = true;
+        this.renderPanel();
+      }
+    }
+
+    /* 震動與背景 */
+    let sx = 0, sy = 0;
+    if (this.shakeT > 0) {
+      this.shakeT -= dt;
+      sx = Math.round((Math.random() * 2 - 1) * this.shakeAmp);
+      sy = Math.round((Math.random() * 2 - 1) * this.shakeAmp * 0.6);
+      if (this.shakeT <= 0) this.shakeAmp = 0;
+    }
+    ctx.save();
+    ctx.translate(sx, sy);
+    const zone = DATA.zones[R.full.boss.z];
+    ctx.fillStyle = zone.sky;
+    ctx.fillRect(-4, -4, 143, 68);
+    ctx.fillStyle = zone.ground;
+    ctx.fillRect(-4, 54, 143, 10);
+
+    /* 王血條（頂部） */
+    const pct = Math.max(0, sim.boss.hp) / R.full.boss.hp;
+    ctx.fillStyle = '#33121a';
+    ctx.fillRect(4, 3, 127, 2);
+    ctx.fillStyle = pct > 0.3 ? '#ff5a5a' : '#ffd94d';
+    ctx.fillRect(4, 3, Math.round(127 * pct), 2);
+    Sprites.text(ctx, Math.round(pct * 100) + '.', 60, 7, '#d8d2e8'); /* 百分比 */
+
+    /* 王 */
+    R.bossFlash = Math.max(0, R.bossFlash - dt);
+    const bMap = MOB_SPRITES[zone.boss.arch];
+    const bY = 54 - bMap.length * 2;
+    const bBob = Math.round(Math.sin(t * 1.6));
+    if (R.bossFlash > 0) Sprites.drawSilhouette(ctx, bMap, '#ffffff', 102, bY + bBob, true, 2);
+    else Sprites.draw(ctx, bMap, zone.boss.pal, 102, bY + bBob, true, 2);
+
+    /* 六位英雄：先畫隊友後排、再畫我方前排 */
+    const order = [...sim.heroes].sort((a, b) =>
+      (a.team === R.myTeam ? 1 : 0) - (b.team === R.myTeam ? 1 : 0));
+    for (const h of order) {
+      const i = sim.heroes.indexOf(h);
+      const fx = R.fx[i];
+      fx.lunge = Math.max(0, fx.lunge - dt);
+      fx.flash = Math.max(0, fx.flash - dt);
+      const pos = this.raidHeroPos(h);
+      const c = DATA.classes[h.c];
+      const map = HERO_SPRITES[c.sprite];
+      const mine = h.team === R.myTeam;
+      /* 歸屬標記：我方=職業色條、隊友=灰色條 */
+      ctx.fillStyle = mine ? c.color : '#8a8a9a';
+      ctx.fillRect(pos.x + 2, pos.y + 13, 6, 1);
+      if (h.hp <= 0) {
+        ctx.globalAlpha = 0.35;
+        Sprites.drawSilhouette(ctx, map, '#555566', pos.x, pos.y + 3, false, 1);
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      const bob = Math.round(Math.sin(t * 2.5 + i * 1.3));
+      const lx = Math.round(fx.lunge * 24);
+      if (!mine) ctx.globalAlpha = 0.85;
+      if (fx.flash > 0) Sprites.drawSilhouette(ctx, map, '#ff8080', pos.x + lx, pos.y + bob, false, 1);
+      else Sprites.draw(ctx, map, c.pal, pos.x + lx, pos.y + bob, false, 1);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#33121a';
+      ctx.fillRect(pos.x, pos.y - 3, 10, 1);
+      ctx.fillStyle = mine ? '#5fd35f' : '#9ab8a0';
+      ctx.fillRect(pos.x, pos.y - 3, Math.max(0, Math.round(10 * h.hp / h.s.hp)), 1);
+      if (h.shield > 0) {
+        ctx.fillStyle = '#57e6e6';
+        ctx.fillRect(pos.x, pos.y - 5, Math.min(10, Math.max(1, Math.round(10 * h.shield / h.s.hp))), 1);
+      }
+    }
+
+    this.drawParticles(ctx, dt);
+    this.drawDmgTexts(ctx, dt);
+    if (sim.done) {
+      Sprites.text(ctx, sim.win ? '!!' : '--', 64, 16, sim.win ? '#ffd94d' : '#8a80a0', 2);
+    }
     ctx.restore();
   },
 
@@ -477,6 +655,7 @@ const UI = {
       case 'forge': p.innerHTML = this.htmlForge(); this.bindForge(p); break;
       case 'core': p.innerHTML = this.htmlCore(); this.bindCore(p); break;
       case 'ascend': p.innerHTML = this.htmlAscend(); this.bindAscend(p); break;
+      case 'raid': p.innerHTML = this.htmlRaid(); this.bindRaid(p); break;
       case 'achv': p.innerHTML = this.htmlAchv(); break;
       case 'set': p.innerHTML = this.htmlSet(); this.bindSet(p); break;
     }
@@ -486,6 +665,8 @@ const UI = {
     /* 週期刷新：避開含 <select>/輸入框 的分頁以免打斷操作 */
     if (!document.getElementById('modal-root').classList.contains('hidden')) return;
     if (['party', 'ascend', 'achv', 'core', 'forge'].includes(this.tab)) this.renderPanel();
+    /* 共鬥戰鬥中：即時更新傷害統計（此狀態無輸入框） */
+    if (this.tab === 'raid' && this.raid && !this.raid.st.done) this.renderPanel();
   },
 
   /* ---------- 隊伍 ---------- */
@@ -954,6 +1135,138 @@ const UI = {
       Game.buyTalent(b.dataset.talent);
       this.renderPanel(); this.renderTop();
     });
+  },
+
+  /* ---------- 共鬥 ---------- */
+  raidPreview: null,
+
+  htmlRaid() {
+    const st = Game.state;
+    const R = this.raid;
+
+    /* 戰鬥中 / 結算 */
+    if (R) {
+      const sim = R.st;
+      const pct = Math.max(0, sim.boss.hp) / R.full.boss.hp;
+      const dmg = R.full.teams.map(() => 0);
+      sim.heroes.forEach(h => { dmg[h.team] += h.dmg; });
+      const bossName = DATA.zones[R.full.boss.z].boss.name;
+      let html = `<div class="section-title">${sim.done ? '共鬥結算' : '共鬥進行中'} — ${bossName} Lv${R.full.boss.lv}</div>
+        <div class="raid-box">
+          王血量 <b>${(pct * 100).toFixed(1)}%</b> · ${Math.floor(sim.tick / RAID_TPS)}s / ${RAID_MAX_TICKS / RAID_TPS}s<br>
+          ${R.full.teams.map((t, i) =>
+            `<span style="color:${i === R.myTeam ? '#7dd87d' : '#c9c9d8'}">${i === R.myTeam ? '★' : '◇'} ${t.n}：${Game.fmt(dmg[i] / 10)}</span>`
+          ).join('　')}
+        </div>`;
+      if (!sim.done) {
+        html += `<div class="btn-row">
+          <button id="raid-speed">速度 ×${R.speed}</button>
+          <button id="raid-skip">跳到結果</button>
+          <button id="raid-abort" class="warn">中止</button></div>`;
+      } else {
+        html += `<div class="raid-box" style="margin-top:6px">${sim.win ? '🎉 共鬥王被擊破！' : '時間到，王還站著 —— 累積傷害如下'}<br>` +
+          [...sim.heroes].sort((a, b) => b.dmg - a.dmg).map(h =>
+            `<span style="color:${h.team === R.myTeam ? DATA.classes[h.c].color : '#c9c9d8'}">
+             ${R.full.teams[h.team].n}的${DATA.classes[h.c].name}Lv${h.s.l} — ${Game.fmt(h.dmg / 10)}</span>`
+          ).join('<br>') + '</div>';
+        if (R.reportCode) {
+          html += `<div class="hint" style="margin-top:6px">把這份戰報碼傳回給開戰的隊友，對方貼上就能重播同一場：</div>
+            <textarea id="raid-report" readonly>${R.reportCode}</textarea>
+            <div class="btn-row"><button id="raid-copy" class="accent">複製戰報碼</button>
+            <button id="raid-close">關閉</button></div>`;
+        } else {
+          html += `<div class="btn-row" style="margin-top:6px"><button id="raid-close">關閉</button></div>`;
+        }
+      }
+      return html;
+    }
+
+    /* 準備狀態 */
+    const maxB = Math.max(10, Math.floor(st.maxFloorEver / 10) * 10);
+    const floors = [];
+    for (let f = maxB; f >= 10 && floors.length < 8; f -= 10) floors.push(f);
+    const opts = floors.map(f =>
+      `<option value="${f}">Lv${f} ${DATA.zones[Game.zoneIdx(f)].boss.name}</option>`).join('');
+    let html = `<div class="section-title">和朋友同框並肩打共鬥王</div>
+      <div class="hint">① 你按「產生挑戰碼」傳給朋友<br>② 朋友貼進下方框開戰，打完把「戰報碼」傳回<br>③ 你貼上戰報碼重播 —— 兩邊看到的是逐幀相同的戰鬥</div>
+      <div class="set-row" style="margin-top:8px"><span>我的名字</span>
+        <input id="raid-name" maxlength="8" value="${st.settings.playerName}"></div>
+      <div class="set-row"><span>挑戰的王</span><select id="raid-boss">${opts}</select></div>
+      <div class="btn-row"><button id="raid-make" class="accent">產生挑戰碼（帶上我的隊伍）</button></div>
+      <textarea id="raid-out" readonly placeholder="挑戰碼會出現在這裡，複製傳給朋友"></textarea>
+      <div class="section-title">貼上朋友的挑戰碼 / 戰報碼</div>
+      <textarea id="raid-in" placeholder="貼在這裡"></textarea>
+      <div class="btn-row"><button id="raid-load">讀取</button></div>`;
+    if (this.raidPreview) {
+      const pv = this.raidPreview;
+      const bossName = DATA.zones[pv.boss.z].boss.name;
+      html += `<div class="raid-box" style="margin-top:6px">
+        ${bossName} Lv${pv.boss.lv}<br>` +
+        pv.teams.map(t => `${t.n}：${t.h.map(s => `${DATA.classes[s.c].name}Lv${s.l}`).join('、')}`).join('<br>') +
+        `</div><div class="btn-row">
+        <button id="raid-fight" class="accent">${pv.teams.length === 1 ? '⚔ 並肩開戰（加入我的隊伍）' : '▶ 重播這場戰報'}</button></div>`;
+    }
+    return html;
+  },
+
+  bindRaid(p) {
+    const R = this.raid;
+    if (R) {
+      const sp = p.querySelector('#raid-speed');
+      if (sp) sp.onclick = () => { R.speed = R.speed === 1 ? 4 : 1; this.renderPanel(); };
+      const sk = p.querySelector('#raid-skip');
+      if (sk) sk.onclick = () => {
+        while (!R.st.done) { Raid.stepTick(R.st); R.st.events.length = 0; }
+        R.doneNotified = true;
+        this.dmgTexts.length = 0; this.parts.length = 0;
+        this.renderPanel();
+      };
+      const ab = p.querySelector('#raid-abort');
+      if (ab) ab.onclick = () => this.endRaid();
+      const cl = p.querySelector('#raid-close');
+      if (cl) cl.onclick = () => this.endRaid();
+      const cp = p.querySelector('#raid-copy');
+      if (cp) cp.onclick = () => {
+        const ta = p.querySelector('#raid-report');
+        ta.select();
+        try { document.execCommand('copy'); this.toast('戰報碼已複製'); } catch (e) { /* 忽略 */ }
+      };
+      return;
+    }
+    p.querySelector('#raid-name').onchange = (e) => {
+      Game.state.settings.playerName = e.target.value.trim() || '勇者';
+    };
+    p.querySelector('#raid-make').onclick = () => {
+      const lv = +p.querySelector('#raid-boss').value;
+      const name = Game.state.settings.playerName;
+      const code = Raid.encode(Raid.newChallenge(lv, name));
+      const ta = p.querySelector('#raid-out');
+      ta.value = code;
+      ta.select();
+      try { document.execCommand('copy'); this.toast('挑戰碼已複製，傳給朋友吧！'); } catch (e) { /* 忽略 */ }
+    };
+    p.querySelector('#raid-load').onclick = () => {
+      const obj = Raid.decode(p.querySelector('#raid-in').value);
+      if (!obj) { this.toast('這不是有效的挑戰碼/戰報碼'); return; }
+      if (obj.teams.length > 2) { this.toast('隊伍數量異常'); return; }
+      this.raidPreview = obj;
+      const keep = p.querySelector('#raid-in').value;
+      this.renderPanel();
+      document.getElementById('panel').querySelector('#raid-in').value = keep;
+    };
+    const fight = p.querySelector('#raid-fight');
+    if (fight) fight.onclick = () => {
+      const pv = this.raidPreview;
+      this.raidPreview = null;
+      const myName = Game.state.settings.playerName;
+      if (pv.teams.length === 1) {
+        const full = Raid.joinChallenge(pv, myName);
+        this.startRaid(full, 1, Raid.encode(full));
+      } else {
+        const myIdx = pv.teams.findIndex(t => t.n === myName);
+        this.startRaid(pv, myIdx >= 0 ? myIdx : 0, null);
+      }
+    };
   },
 
   /* ---------- 成就 ---------- */

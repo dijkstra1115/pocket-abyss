@@ -118,8 +118,8 @@ button.sel { border-color: var(--border-hi); background: #2e2450; color: #fff; }
 .ic-ember { background: var(--ember); box-shadow: inset -2px -2px 0 #a03818; }
 
 /* ---------- 分頁 ---------- */
-#tabs { display: flex; gap: 3px; }
-#tabs button { flex: 1; padding: 4px 0; font-size: 13px; }
+#tabs { display: flex; gap: 2px; }
+#tabs button { flex: 1; padding: 4px 0; font-size: 12px; }
 #tabs button.on { border-color: var(--border-hi); background: #2e2450; color: #fff; }
 
 #panel {
@@ -191,11 +191,18 @@ button.sel { border-color: var(--border-hi); background: #2e2450; color: #fff; }
 .item-chip .inm { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-chip .ilv { color: var(--dim); font-size: 10px; }
 
-select {
+select, input {
   font-family: inherit; font-size: 12px;
   background: var(--panel2); color: var(--text);
   border: 2px solid var(--border); padding: 2px 4px;
 }
+
+/* ---------- 共鬥 ---------- */
+.raid-box {
+  border: 2px solid var(--border); background: var(--panel2);
+  padding: 6px 8px; font-size: 12px; line-height: 1.7;
+}
+.raid-box b { font-weight: normal; color: #ffd94d; }
 
 /* ---------- 裝備選擇列（含屬性對照） ---------- */
 .item-row {
