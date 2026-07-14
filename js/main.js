@@ -12,6 +12,9 @@
   if (location.hash.includes('dbg=1')) {
     document.title = `${window.innerWidth}x${window.innerHeight} dpr${window.devicePixelRatio}`;
   }
+  /* 除錯：#scale=0.7 強制介面縮放 */
+  const hashScale = location.hash.match(/scale=([\d.]+)/);
+  if (hashScale) { Game.state.settings.uiScale = +hashScale[1]; UI.applyScale(); }
   /* 除錯：#eqbest 自動配裝；#pick=blade:weapon 直接開選裝面板 */
   if (location.hash.includes('eqbest')) setTimeout(() => Game.autoEquipParty(), 2000);
   const hashPick = location.hash.match(/pick=(\w+):(\w+)/);

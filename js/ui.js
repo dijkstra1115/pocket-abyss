@@ -113,6 +113,7 @@ const UI = {
       if (e.target.id === 'modal-root') this.closeModal();
     };
     if (Game.state.settings.mini) document.body.classList.add('mini');
+    this.applyScale();
     this.renderTop();
     this.renderPanel();
   },
@@ -121,7 +122,17 @@ const UI = {
     const s = Game.state.settings;
     s.mini = !s.mini;
     document.body.classList.toggle('mini', s.mini);
-    try { window.resizeTo(436, s.mini ? 300 : 736); } catch (e) { /* 非 app 視窗會被拒 */ }
+    this.applyScale();
+  },
+
+  /* 介面縮放：內容用 zoom 縮放，視窗跟著自動改大小 */
+  applyScale() {
+    const s = Game.state.settings;
+    const z = s.uiScale || 1;
+    document.body.style.zoom = z;
+    const w = Math.round(420 * z) + 16;                    /* 視窗邊框 */
+    const h = s.mini ? Math.round(260 * z) + 40 : Math.round(700 * z) + 40; /* 標題列 */
+    try { window.resizeTo(w, h); } catch (e) { /* 非 app 視窗會被拒 */ }
   },
 
   /* ============ 提示 ============ */
@@ -971,6 +982,10 @@ const UI = {
         <button id="set-adv">${st.settings.autoAdvance ? '開' : '關'}</button></div>
       <div class="set-row"><span>迷你模式（只留戰鬥畫面）</span>
         <button id="set-mini">切換</button></div>
+      <div class="set-row"><span>視窗大小</span><span>
+        ${[['1', '大'], ['0.85', '中'], ['0.7', '小']].map(([v, n]) =>
+          `<button data-scale="${v}" class="${Math.abs((st.settings.uiScale || 1) - +v) < 0.01 ? 'sel' : ''}">${n}</button>`
+        ).join('')}</span></div>
       <div class="set-row"><span class="hint">離線收益上限：${capH} 小時 · 目前擊殺效率 ${st.kps.toFixed(2)}/秒</span></div>
       <div class="section-title">存檔</div>
       <textarea id="save-io" placeholder="匯出後複製保存；或貼上存檔碼後按匯入"></textarea>
@@ -991,6 +1006,12 @@ const UI = {
       this.renderPanel(); this.renderTop();
     };
     p.querySelector('#set-mini').onclick = () => this.toggleMini();
+    p.querySelectorAll('[data-scale]').forEach(b => b.onclick = () => {
+      Game.state.settings.uiScale = +b.dataset.scale;
+      this.applyScale();
+      Game.save();
+      this.renderPanel();
+    });
     p.querySelector('#save-exp').onclick = () => {
       const ta = p.querySelector('#save-io');
       ta.value = Game.exportSave();

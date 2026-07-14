@@ -80,6 +80,7 @@ button:active { transform: translateY(1px); }
 button:disabled { opacity: 0.4; cursor: default; transform: none; }
 button.warn { border-color: #6b2c3d; }
 button.accent { border-color: #3d5c8f; }
+button.sel { border-color: var(--border-hi); background: #2e2450; color: #fff; }
 
 /* ---------- 戰鬥畫布 ---------- */
 #scene {

@@ -37,7 +37,7 @@ const Game = {
         playtime: 0,
       },
       kps: 0.2,
-      settings: { autoAdvance: true, autoSalv: 0, mini: false },
+      settings: { autoAdvance: true, autoSalv: 0, mini: false, uiScale: 1 },
       lastSeen: Date.now(),
     };
   },
