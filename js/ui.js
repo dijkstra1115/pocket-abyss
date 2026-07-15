@@ -262,7 +262,7 @@ const UI = {
           this.toast(`🏆 成就達成：<b>${e.a.name}</b>`);
           break;
         case 'lvl':
-          this.toast(`${DATA.classes[e.cls].name} 升到 ${e.lv} 級`);
+          this.toast(`隊伍升到 ${e.lv} 級！`);
           break;
         case 'zone':
           this.toast(`進入新區域：<b>${e.name}</b>`);
@@ -460,24 +460,51 @@ const UI = {
 
   startRaid(full, myTeam, reportCode, cloud) {
     this.raid = {
-      full, st: Raid.init(full), myTeam,
+      full, st: full.mode === 'exp' ? Raid.expInit(full) : Raid.init(full), myTeam,
       speed: 1, acc: 0, reportCode: reportCode || null,
       cloud: cloud || null, posted: false,
       fx: full.teams.flatMap(t => t.h.map(() => ({ lunge: 0, flash: 0 }))),
-      bossFlash: 0, doneNotified: false,
+      mobFxR: [], bossFlash: 0, doneNotified: false,
     };
     this.dmgTexts.length = 0;
     this.parts.length = 0;
     this.renderPanel();
   },
 
-  /* 雲端出戰結束：把我方這輪傷害回寫房間 */
+  /* 雲端出戰結束：把成果回寫房間 */
   postRaidResult(R) {
     if (!R.cloud || R.posted) return;
     R.posted = true;
+    const name = Game.state.settings.playerName;
+    if (R.st.mode === 'exp') {
+      const from = R.full.from;
+      const to = from + R.st.cleared;
+      if (to > from) {
+        /* 遠征獎勵（只發自己這輪實際推進的樓層） */
+        let gold = 0, dust = 0, xp = 0;
+        for (let f = from; f < to; f++) {
+          gold += Math.ceil(Game.killGold(f)) * 12;
+          dust += 5 + f;
+          xp += Game.killXp(f) * 8;
+        }
+        Game.state.gold += gold;
+        Game.state.stats.goldEarned += gold;
+        Game.state.dust += dust;
+        Game.gainXp(xp);
+        this.toast(`遠征獎勵：金幣 ${Game.fmt(gold)}、星塵 ${Game.fmt(dust)}`);
+      }
+      Raid.postExp(R.cloud.code, name, from, to, R.cloud.seed)
+        .then(room => {
+          this.roomData = room;
+          if (to > from) this.toast(`共享深度推進到第 ${room.exp.floor} 層！`);
+          if (this.raid === R) this.renderPanel();
+        })
+        .catch(() => this.toast('進度回報失敗，請稍後在房間按「重新整理」'));
+      return;
+    }
     let myDmg = 0;
     for (const h of R.st.heroes) if (h.team === R.myTeam) myDmg += h.dmg;
-    Raid.postDamage(R.cloud.code, Game.state.settings.playerName, myDmg, R.cloud.seed)
+    Raid.postDamage(R.cloud.code, name, myDmg, R.cloud.seed)
       .then(room => {
         this.roomData = room;
         this.toast(`已回報傷害 ${Game.fmt(myDmg / 10)}`);
@@ -500,24 +527,49 @@ const UI = {
       : { x: 13 + h.idx * 19, y: 47 - 12 };  /* 隊友後排（略高、錯位） */
   },
 
+  raidMobPos(i, boss) {
+    return boss ? { x: 100, y: 54 - 16 } : { x: 78 + i * 19, y: 54 - 10 };
+  },
+
   raidEvent(e) {
     const R = this.raid, sim = R.st;
+    const isExp = sim.mode === 'exp';
     const bossC = { x: 112, y: 42 };
     if (e.k === 'hit') {
       const h = sim.heroes[e.h];
       const mine = h.team === R.myTeam;
       const cc = DATA.classes[h.c];
-      R.bossFlash = 0.08;
       if (R.fx[e.h]) R.fx[e.h].lunge = 0.15;
-      this.sparks(bossC.x + (e.h % 3) * 3 - 3, bossC.y - (e.h % 2) * 5,
-        e.crit ? 8 : 3, h.c === 'mage' ? FX_FIRE : FX_SPARK, e.crit ? 40 : 24);
+      let tx, ty;
+      if (isExp) {
+        const mob = sim.mobs[e.m];
+        const pos = this.raidMobPos(e.m, mob && mob.boss);
+        tx = pos.x + 5; ty = pos.y + 5;
+        if (R.mobFxR[e.m]) R.mobFxR[e.m].flash = 0.1;
+      } else {
+        tx = bossC.x + (e.h % 3) * 3 - 3; ty = bossC.y - (e.h % 2) * 5;
+        R.bossFlash = 0.08;
+      }
+      this.sparks(tx, ty, e.crit ? 8 : 3, h.c === 'mage' ? FX_FIRE : FX_SPARK, e.crit ? 40 : 24);
       this.dmgTexts.push({
-        x: 100 + (e.h % 3) * 8, y: 26 - Math.floor(e.h / 2) * 5, t: 0.8,
+        x: isExp ? tx : 100 + (e.h % 3) * 8,
+        y: isExp ? ty - 10 : 26 - Math.floor(e.h / 2) * 5,
+        t: 0.8,
         str: Game.fmt(Math.max(1, e.amt / 10)),
         color: mine ? cc.color : '#c9c9d8',
         scale: e.crit ? 2 : 1,
       });
       if (e.crit) this.shake(1, 0.08);
+    } else if (e.k === 'kill') {
+      const pos = this.raidMobPos(e.m, e.boss);
+      this.sparks(pos.x + 5, pos.y + 5, e.boss ? 22 : 10, [e.c1, e.c1, e.c2, '#2b2b30'], e.boss ? 50 : 32);
+      this.rise(pos.x + 5, pos.y + 3, 3, FX_SMOKE);
+      if (e.boss) this.shake(2.5, 0.3);
+    } else if (e.k === 'matk') {
+      if (R.mobFxR[e.i]) R.mobFxR[e.i].lunge = 0.15;
+    } else if (e.k === 'floor') {
+      this.dmgTexts.push({ x: 67, y: 18, t: 1.1, str: 'F' + e.f, color: '#ffd94d', scale: 2 });
+      this.rise(67, 30, 8, FX_HEAL);
     } else if (e.k === 'bhit') {
       const pos = this.raidHeroPos(sim.heroes[e.t]);
       if (R.fx[e.t]) { R.fx[e.t].flash = 0.12; }
@@ -552,7 +604,7 @@ const UI = {
       let guard = 0;
       while (R.acc >= step && guard++ < 60) {
         R.acc -= step;
-        Raid.stepTick(sim);
+        Raid.step(sim);
         for (const e of sim.events) this.raidEvent(e);
         sim.events.length = 0;
         if (sim.done) break;
@@ -574,27 +626,56 @@ const UI = {
     }
     ctx.save();
     ctx.translate(sx, sy);
-    const zone = DATA.zones[R.full.boss.z];
+    const isExp = sim.mode === 'exp';
+    const zone = isExp
+      ? DATA.zones[Math.floor(((sim.floor - 1) % 200) / 25)]
+      : DATA.zones[R.full.boss.z];
     ctx.fillStyle = zone.sky;
     ctx.fillRect(-4, -4, 143, 68);
     ctx.fillStyle = zone.ground;
     ctx.fillRect(-4, 54, 143, 10);
 
-    /* 王血條（頂部） */
-    const pct = Math.max(0, sim.boss.hp) / R.full.boss.hp;
-    ctx.fillStyle = '#33121a';
-    ctx.fillRect(4, 3, 127, 2);
-    ctx.fillStyle = pct > 0.3 ? '#ff5a5a' : '#ffd94d';
-    ctx.fillRect(4, 3, Math.round(127 * pct), 2);
-    Sprites.text(ctx, Math.round(pct * 100) + '.', 60, 7, '#d8d2e8'); /* 百分比 */
+    if (isExp) {
+      /* 遠征：樓層標示 + 多隻怪物 */
+      Sprites.text(ctx, 'F' + sim.floor, 4, 3, '#ffd94d');
+      Sprites.text(ctx, '+' + sim.cleared, 4, 10, '#7dd87d');
+      while (R.mobFxR.length < sim.mobs.length) R.mobFxR.push({ lunge: 0, flash: 0 });
+      R.mobFxR.length = Math.max(R.mobFxR.length, sim.mobs.length);
+      for (let i = 0; i < sim.mobs.length; i++) {
+        const m = sim.mobs[i];
+        const map = MOB_SPRITES[m.def.arch];
+        const fx = R.mobFxR[i] || { lunge: 0, flash: 0 };
+        fx.lunge = Math.max(0, fx.lunge - dt);
+        fx.flash = Math.max(0, fx.flash - dt);
+        const scale = m.boss ? 2 : 1;
+        const pos = this.raidMobPos(i, m.boss);
+        const bob = Math.round(Math.sin(t * 2 + i * 2.4));
+        const lx = -Math.round(fx.lunge * 24);
+        const y = 54 - map.length * scale;
+        if (fx.flash > 0) Sprites.drawSilhouette(ctx, map, '#ffffff', pos.x + lx, y + bob, true, scale);
+        else Sprites.draw(ctx, map, m.def.pal, pos.x + lx, y + bob, true, scale);
+        const bw = 10 * scale;
+        ctx.fillStyle = '#33121a';
+        ctx.fillRect(pos.x, y - 3, bw, 1);
+        ctx.fillStyle = m.boss ? '#ff5a5a' : '#e0a03d';
+        ctx.fillRect(pos.x, y - 3, Math.max(0, Math.round(bw * m.hp / m.max)), 1);
+      }
+    } else {
+      /* 共鬥王血條（頂部） */
+      const pct = Math.max(0, sim.boss.hp) / R.full.boss.hp;
+      ctx.fillStyle = '#33121a';
+      ctx.fillRect(4, 3, 127, 2);
+      ctx.fillStyle = pct > 0.3 ? '#ff5a5a' : '#ffd94d';
+      ctx.fillRect(4, 3, Math.round(127 * pct), 2);
+      Sprites.text(ctx, Math.round(pct * 100) + '.', 60, 7, '#d8d2e8');
 
-    /* 王 */
-    R.bossFlash = Math.max(0, R.bossFlash - dt);
-    const bMap = MOB_SPRITES[zone.boss.arch];
-    const bY = 54 - bMap.length * 2;
-    const bBob = Math.round(Math.sin(t * 1.6));
-    if (R.bossFlash > 0) Sprites.drawSilhouette(ctx, bMap, '#ffffff', 102, bY + bBob, true, 2);
-    else Sprites.draw(ctx, bMap, zone.boss.pal, 102, bY + bBob, true, 2);
+      R.bossFlash = Math.max(0, R.bossFlash - dt);
+      const bMap = MOB_SPRITES[zone.boss.arch];
+      const bY = 54 - bMap.length * 2;
+      const bBob = Math.round(Math.sin(t * 1.6));
+      if (R.bossFlash > 0) Sprites.drawSilhouette(ctx, bMap, '#ffffff', 102, bY + bBob, true, 2);
+      else Sprites.draw(ctx, bMap, zone.boss.pal, 102, bY + bBob, true, 2);
+    }
 
     /* 六位英雄：先畫隊友後排、再畫我方前排 */
     const order = [...sim.heroes].sort((a, b) =>
@@ -695,8 +776,13 @@ const UI = {
   /* ---------- 隊伍 ---------- */
   htmlParty() {
     const st = Game.state;
+    const need = Game.xpNeed(st.teamLv);
     let html = `<div class="bag-tools"><span class="hint">上陣 ${st.party.length}/3 · 點裝備欄更換裝備</span>
-      <button id="auto-eq" class="accent" style="margin-left:auto">一鍵配裝</button></div>`;
+      <button id="auto-eq" class="accent" style="margin-left:auto">一鍵配裝</button></div>
+      <div class="raid-box" style="margin-bottom:6px">隊伍等級 <b>Lv${st.teamLv}</b>
+        <span class="hint">全隊共享，換誰上場都同等級</span>
+        <div class="xp-bar" style="margin-top:4px"><i style="width:${Math.min(100, 100 * st.teamXp / need)}%"></i></div>
+      </div>`;
     for (const cls of DATA.classOrder) {
       const c = DATA.classes[cls];
       const h = st.heroes[cls];
@@ -717,16 +803,14 @@ const UI = {
       }
       const s = Game.heroStats(cls);
       const inParty = st.party.includes(cls);
-      const need = Game.xpNeed(h.lv);
       html += `<div class="hero-card">
         <div class="hero-head">
           <canvas data-sprite="${cls}" width="20" height="24"></canvas>
-          <div><div class="hero-name"><i class="ic" style="background:${c.color}"></i> ${c.name} <span class="hero-sub">Lv${h.lv}</span></div>
+          <div><div class="hero-name"><i class="ic" style="background:${c.color}"></i> ${c.name} <span class="hero-sub">Lv${st.teamLv}</span></div>
           <div class="hero-sub">${c.skill.name}：${c.skill.desc}</div></div>
           <div class="spacer"></div>
           <button data-party="${cls}" class="${inParty ? '' : 'accent'}">${inParty ? '下陣' : '上陣'}</button>
         </div>
-        <div class="xp-bar"><i style="width:${Math.min(100, 100 * h.xp / need)}%"></i></div>
         <div class="stat-grid">
           <span>攻擊 <b>${Game.fmt(s.atk)}</b></span>
           <span>生命 <b>${Game.fmt(s.hp)}</b></span>
@@ -1170,13 +1254,19 @@ const UI = {
     /* 戰鬥中 / 結算 */
     if (R) {
       const sim = R.st;
-      const pct = Math.max(0, sim.boss.hp) / R.full.boss.hp;
+      const isExp = sim.mode === 'exp';
       const dmg = R.full.teams.map(() => 0);
       sim.heroes.forEach(h => { dmg[h.team] += h.dmg; });
-      const bossName = DATA.zones[R.full.boss.z].boss.name;
-      let html = `<div class="section-title">${sim.done ? '共鬥結算' : '共鬥進行中'} — ${bossName} Lv${R.full.boss.lv}</div>
+      const maxSec = (isExp ? Raid.EXP_TICKS : RAID_MAX_TICKS) / RAID_TPS;
+      const headline = isExp
+        ? `遠征第 <b>${sim.floor}</b> 層（本輪已推 ${sim.cleared} 層）`
+        : `王血量 <b>${(Math.max(0, sim.boss.hp) / R.full.boss.hp * 100).toFixed(1)}%</b>`;
+      const title = isExp
+        ? `${sim.done ? '遠征結算' : '遠征中'} — 深淵遠征`
+        : `${sim.done ? '共鬥結算' : '共鬥進行中'} — ${DATA.zones[R.full.boss.z].boss.name} Lv${R.full.boss.lv}`;
+      let html = `<div class="section-title">${title}</div>
         <div class="raid-box">
-          王血量 <b>${(pct * 100).toFixed(1)}%</b> · ${Math.floor(sim.tick / RAID_TPS)}s / ${RAID_MAX_TICKS / RAID_TPS}s<br>
+          ${headline} · ${Math.floor(sim.tick / RAID_TPS)}s / ${maxSec}s<br>
           ${R.full.teams.map((t, i) =>
             `<span style="color:${i === R.myTeam ? '#7dd87d' : '#c9c9d8'}">${i === R.myTeam ? '★' : '◇'} ${t.n}：${Game.fmt(dmg[i] / 10)}</span>`
           ).join('　')}
@@ -1187,7 +1277,10 @@ const UI = {
           <button id="raid-skip">跳到結果</button>
           <button id="raid-abort" class="warn">中止</button></div>`;
       } else {
-        html += `<div class="raid-box" style="margin-top:6px">${sim.win ? '🎉 共鬥王被擊破！' : '時間到，王還站著 —— 累積傷害如下'}<br>` +
+        const doneMsg = isExp
+          ? `遠征結束：第 ${R.full.from} 層 → 第 ${R.full.from + sim.cleared} 層（推進 ${sim.cleared} 層）`
+          : (sim.win ? '🎉 共鬥王被擊破！' : '時間到，王還站著 —— 累積傷害如下');
+        html += `<div class="raid-box" style="margin-top:6px">${doneMsg}<br>` +
           [...sim.heroes].sort((a, b) => b.dmg - a.dmg).map(h =>
             `<span style="color:${h.team === R.myTeam ? DATA.classes[h.c].color : '#c9c9d8'}">
              ${R.full.teams[h.team].n}的${DATA.classes[h.c].name}Lv${h.s.l} — ${Game.fmt(h.dmg / 10)}</span>`
@@ -1233,6 +1326,16 @@ const UI = {
           <button id="room-copy">複製房碼</button>
           <button id="room-leave" class="warn">離開</button>
         </div>`;
+      /* 雙人深淵遠征 */
+      const exp = rm.exp || { floor: 1, best: 1, runs: [] };
+      html += `<div class="section-title">深淵遠征 — 兩人共享進度的接力爬層</div>
+        <div class="raid-box">
+          目前深度 <b>第 ${exp.floor} 層</b>${exp.best > exp.floor ? `（紀錄 ${exp.best}）` : ''}<br>
+          <span class="hint">六人同行往下推層，推到哪隊友就從哪接棒；全滅或 120 秒收兵，過層有金幣星塵獎勵</span>
+        </div>
+        <div class="btn-row"><button id="exp-fight" class="accent">⛏ 遠征出戰（120秒）</button></div>` +
+        (exp.runs || []).slice(0, 3).map(r =>
+          `<div class="forge-op"><div>${r.n}：第 ${r.from} → ${r.to} 層</div></div>`).join('');
       const replays = (rm.runs || []).slice(0, 3);
       if (replays.length) {
         html += `<div class="section-title">最近出戰（可重播觀戰）</div>` +
@@ -1286,7 +1389,7 @@ const UI = {
       if (sp) sp.onclick = () => { R.speed = R.speed === 1 ? 4 : 1; this.renderPanel(); };
       const sk = p.querySelector('#raid-skip');
       if (sk) sk.onclick = () => {
-        while (!R.st.done) { Raid.stepTick(R.st); R.st.events.length = 0; }
+        while (!R.st.done) { Raid.step(R.st); R.st.events.length = 0; }
         R.doneNotified = true;
         this.postRaidResult(R);
         this.dmgTexts.length = 0; this.parts.length = 0;
@@ -1354,6 +1457,15 @@ const UI = {
       const myIdx = rm.players.findIndex(pl => pl.n === myName());
       if (myIdx < 0) { this.toast('名字與房內參戰者不符'); return; }
       this.startRaid(Raid.roomInput(rm, seed), myIdx, null, { code: rm.code, seed });
+    };
+    const ef = p.querySelector('#exp-fight');
+    if (ef) ef.onclick = () => {
+      const rm = this.roomData;
+      if (!rm) return;
+      const seed = Raid.newRoundSeed();
+      const myIdx = rm.players.findIndex(pl => pl.n === myName());
+      if (myIdx < 0) { this.toast('名字與房內參戰者不符'); return; }
+      this.startRaid(Raid.expInput(rm, seed), myIdx, null, { code: rm.code, seed });
     };
     p.querySelectorAll('[data-replay]').forEach(b => b.onclick = () => {
       const rm = this.roomData;

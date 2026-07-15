@@ -53,5 +53,17 @@ function assert(cond, msg) {
   const replay = Raid.simulate(Raid.roomInput(g, g.runs[0].seed));
   assert(replay.hash === r1.hash, '由雲端紀錄重播 → 與原戰鬥逐幀一致');
 
+  /* 深淵遠征：出戰 → 回報 → 共享深度前進 → 夥伴重播一致 */
+  const expSeed = 4242;
+  const expRes = Raid.simulateExp(Raid.expInput(g, expSeed));
+  assert(expRes.cleared >= 1, `遠征推進 F${expRes.from}→F${expRes.to}`);
+  const afterExp = await Raid.postExp(room.code, '乙node', expRes.from, expRes.to, expSeed);
+  assert(afterExp.exp.floor === expRes.to, `共享深度更新為 ${afterExp.exp.floor}`);
+  assert(afterExp.exp.runs.length === 1, '遠征紀錄寫入');
+  const run0 = afterExp.exp.runs[0];
+  const expReplay = Raid.simulateExp(Raid.expInput(
+    { ...afterExp, exp: { floor: run0.from } }, run0.seed));
+  assert(expReplay.hash === expRes.hash, '遠征由雲端紀錄重播 → 逐幀一致');
+
   console.log(process.exitCode ? '\n=== 雲端E2E失敗 ===' : '\n=== 雲端E2E全部通過 ===');
 })().catch(e => { console.error('FAIL(exception): ' + e.message); process.exitCode = 1; });

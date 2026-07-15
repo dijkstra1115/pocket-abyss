@@ -69,10 +69,10 @@ assert(atkBefore > DATA.classes.blade.base.atk, `裝備後攻擊上升 (${atkBef
 for (let i = 0; i < 8; i++) { sim(1800); autoEquipAll(); }
 console.log(`\n[~4小時] 樓層=${s.floor} 最深=${s.maxFloorEver} 擊殺=${s.stats.kills} ` +
   `金幣=${Game.fmt(s.gold)} Boss=${s.stats.bossKills} 星塵=${Game.fmt(s.dust)} ` +
-  `等級=${s.heroes.blade.lv} 最佳品質=${DATA.qualities[s.stats.bestQuality].name}`);
+  `隊伍等級=${s.teamLv} 最佳品質=${DATA.qualities[s.stats.bestQuality].name}`);
 assert(s.maxFloorEver >= 25, `4小時應達25層+ (${s.maxFloorEver})`);
 assert(s.stats.bossKills >= 2, `擊敗過Boss (${s.stats.bossKills})`);
-assert(s.heroes.blade.lv > 5, `英雄有升級 (lv=${s.heroes.blade.lv})`);
+assert(s.teamLv > 5, `隊伍有升級 (lv=${s.teamLv})`);
 
 /* --- 解鎖英雄 --- */
 if (s.maxFloorEver >= 15) {
@@ -113,7 +113,7 @@ if (s.runMaxFloor < 50) { s.runMaxFloor = 60; s.maxFloorEver = Math.max(s.maxFlo
 const gain = Game.emberGain();
 assert(gain > 0, `餘燼預覽 ${gain}`);
 assert(Game.ascend(), '昇華成功');
-assert(s.heroes.blade.lv === 1 && s.floor === 1, '昇華後重置');
+assert(s.teamLv === 1 && s.floor === 1, '昇華後重置');
 assert(s.ember >= gain, `餘燼入帳 ${s.ember}`);
 assert(Game.buyTalent('vanguard'), '購買先遣部隊');
 assert(Game.startFloor() === 6, `起始樓層=6 (${Game.startFloor()})`);
@@ -158,6 +158,18 @@ for (let i = 0; i < 1000; i++) {
 }
 assert(same, `共鬥 1000 次重跑雜湊一致 (hash=${r0.hash})`);
 console.log(`CROSS-ENV-HASH ${r0.hash}`); /* 供瀏覽器端比對 */
+
+/* 深淵遠征：determinism 與推進有效性 */
+const eIn = Raid.expTestInput();
+const e0 = Raid.simulateExp(eIn);
+assert(e0.cleared >= 1 && e0.teamDmg[0] > 0 && e0.teamDmg[1] > 0,
+  `遠征模擬有效 (F${e0.from}→F${e0.to} 推進${e0.cleared}層 ticks=${e0.ticks})`);
+let sameE = true;
+for (let i = 0; i < 500; i++) {
+  if (Raid.simulateExp(eIn).hash !== e0.hash) { sameE = false; break; }
+}
+assert(sameE, `遠征 500 次重跑雜湊一致 (hash=${e0.hash})`);
+console.log(`CROSS-ENV-EXP ${e0.hash}`);
 
 /* 序列化 round-trip：解碼後重播結果一致 */
 const enc = Raid.encode(tIn);

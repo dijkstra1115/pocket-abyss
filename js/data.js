@@ -295,7 +295,7 @@ DATA.achievements = (() => {
   [1, 3, 10, 25].forEach((n, i) =>
     add('asc' + i, '昇華者' + R[i], `完成 ${n} 次昇華`, 'stat', 'prestiges', n));
   [10, 25, 50, 100].forEach((n, i) =>
-    add('lv' + i, '百戰老兵' + R[i], `任一英雄達到 ${n} 級`, 'stat', 'maxHeroLv', n));
+    add('lv' + i, '百戰老兵' + R[i], `隊伍等級達到 ${n} 級`, 'stat', 'maxHeroLv', n));
   for (let q = 3; q <= 11; q++)
     add('q' + q, DATA.qualities[q].name + '獵人', `獲得一件【${DATA.qualities[q].name}】品質裝備`, 'stat', 'bestQuality', q);
   [50, 1000, 20000].forEach((n, i) =>

@@ -21,10 +21,11 @@ const Game = {
       floor: 1, maxFloorEver: 1, runMaxFloor: 1,
       failStreak: 0,
       nextId: 1,
+      teamLv: 1, teamXp: 0,
       heroes: {
-        blade: { lv: 1, xp: 0, equip: {} },
-        ranger: { lv: 1, xp: 0, equip: {} },
-        mage: { lv: 1, xp: 0, equip: {} },
+        blade: { equip: {} },
+        ranger: { equip: {} },
+        mage: { equip: {} },
       },
       party: ['blade', 'ranger', 'mage'],
       inventory: [],
@@ -58,8 +59,26 @@ const Game = {
       this.state = Object.assign(d, parsed);
       this.state.stats = Object.assign(d.stats, parsed.stats || {});
       this.state.settings = Object.assign(d.settings, parsed.settings || {});
+      this.migrate();
       return true;
     } catch (e) { return false; }
+  },
+
+  /* 舊存檔遷移：個別英雄等級 → 全隊等級（取最高者，不虧） */
+  migrate() {
+    const st = this.state;
+    if (st.teamLv === undefined || st.teamLv === null) {
+      let maxLv = 1;
+      for (const cls of Object.keys(st.heroes)) {
+        if (st.heroes[cls].lv > maxLv) maxLv = st.heroes[cls].lv;
+      }
+      st.teamLv = maxLv;
+      st.teamXp = 0;
+    }
+    for (const cls of Object.keys(st.heroes)) {
+      delete st.heroes[cls].lv;
+      delete st.heroes[cls].xp;
+    }
   },
 
   exportSave() {
@@ -74,6 +93,7 @@ const Game = {
       this.state = Object.assign(d, parsed);
       this.state.stats = Object.assign(d.stats, parsed.stats || {});
       this.state.settings = Object.assign(d.settings, parsed.settings || {});
+      this.migrate();
       this.dirty();
       this.initBattle();
       this.save();
@@ -168,7 +188,7 @@ const Game = {
     if (this._cache[cls]) return this._cache[cls];
     const c = DATA.classes[cls];
     const h = this.state.heroes[cls];
-    const lvM = 1 + 0.15 * (h.lv - 1);
+    const lvM = 1 + 0.15 * (this.state.teamLv - 1);
     let fAtk = 0, fHp = 0, fDef = 0;
     const bon = {};
     for (const slot of DATA.slotOrder) {
@@ -489,9 +509,7 @@ const Game = {
     st.stats.goldEarned += gold;
 
     const xp = this.killXp(f) * (mob.boss ? 6 : 1) * (1 + eco.xpP / 100);
-    for (const bh of this.battle.heroes) {
-      if (bh.hp > 0) this.gainXp(bh.cls, xp);
-    }
+    this.gainXp(xp);
 
     if (mob.boss) {
       this.addItem(this.rollItem(f, true));
@@ -504,19 +522,20 @@ const Game = {
     }
   },
 
-  gainXp(cls, amt) {
-    const h = this.state.heroes[cls];
-    h.xp += amt;
+  /* 全隊共享等級：換上任何英雄都是隊伍等級 */
+  gainXp(amt) {
+    const st = this.state;
+    st.teamXp += amt;
     let leveled = false;
-    while (h.xp >= this.xpNeed(h.lv) && h.lv < 999) {
-      h.xp -= this.xpNeed(h.lv);
-      h.lv++;
+    while (st.teamXp >= this.xpNeed(st.teamLv) && st.teamLv < 999) {
+      st.teamXp -= this.xpNeed(st.teamLv);
+      st.teamLv++;
       leveled = true;
     }
     if (leveled) {
-      this.state.stats.maxHeroLv = Math.max(this.state.stats.maxHeroLv, h.lv);
+      st.stats.maxHeroLv = Math.max(st.stats.maxHeroLv, st.teamLv);
       this.dirty();
-      this.emit({ k: 'lvl', cls, lv: h.lv });
+      this.emit({ k: 'lvl', lv: st.teamLv });
     }
   },
 
@@ -789,7 +808,7 @@ const Game = {
   unlockHero(cls) {
     if (!this.canUnlock(cls)) return false;
     this.state.gold -= DATA.classes[cls].unlock.cost;
-    this.state.heroes[cls] = { lv: 1, xp: 0, equip: {} };
+    this.state.heroes[cls] = { equip: {} }; /* 直接享有全隊等級 */
     this.emit({ k: 'unlock', cls });
     this.dirty();
     return true;
@@ -824,10 +843,8 @@ const Game = {
     const st = this.state;
     st.ember += gain;
     st.stats.prestiges++;
-    for (const cls of Object.keys(st.heroes)) {
-      st.heroes[cls].lv = 1;
-      st.heroes[cls].xp = 0;
-    }
+    st.teamLv = 1;
+    st.teamXp = 0;
     st.gold = 0;
     st.floor = this.startFloor();
     st.runMaxFloor = st.floor;
@@ -882,11 +899,11 @@ const Game = {
     const eco = this.economy();
     const f = st.floor;
     const gold = Math.ceil(this.killGold(f) * kills * (1 + eco.goldP / 100));
-    const xpEach = this.killXp(f) * kills * (1 + eco.xpP / 100);
+    const xpTotal = this.killXp(f) * kills * (1 + eco.xpP / 100);
     st.gold += gold;
     st.stats.goldEarned += gold;
     st.stats.kills += kills;
-    for (const cls of st.party) this.gainXp(cls, xpEach);
+    this.gainXp(xpTotal);
     const dustBefore = st.dust;
     const invBefore = st.inventory.length;
     const expect = kills * this.dropChance();

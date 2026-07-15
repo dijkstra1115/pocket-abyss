@@ -12,6 +12,20 @@
   if (location.hash.includes('dbg=1')) {
     document.title = `${window.innerWidth}x${window.innerHeight} dpr${window.devicePixelRatio}`;
   }
+  /* 除錯：#expdemo 本機直接開一場遠征（視覺驗證用） */
+  if (location.hash.includes('expdemo')) {
+    setTimeout(() => {
+      const fake = {
+        players: [
+          { n: '我', h: Raid.mySnapshots() },
+          { n: '鏡像隊友', h: Raid.mySnapshots() },
+        ],
+        exp: { floor: Math.max(1, Game.state.maxFloorEver - 5) },
+      };
+      document.querySelector('#tabs button[data-tab=raid]').click();
+      UI.startRaid(Raid.expInput(fake, 777), 0, null, null);
+    }, 2500);
+  }
   /* 除錯：#roomui 用假資料展示房間視圖（不打網路） */
   if (location.hash.includes('roomui')) {
     setTimeout(() => {
@@ -61,7 +75,8 @@
   /* 除錯：#raidtest 跑固定共鬥輸入、雜湊寫進標題（與 Node 比對跨環境一致性） */
   if (location.hash.includes('raidtest')) {
     const r = Raid.simulate(Raid.testInput());
-    document.title = 'RAIDHASH ' + r.hash + ' ticks ' + r.ticks;
+    const e = Raid.simulateExp(Raid.expTestInput());
+    document.title = 'RAIDHASH ' + r.hash + ' EXP ' + e.hash;
   }
   /* 除錯：#scale=0.7 強制介面縮放 */
   const hashScale = location.hash.match(/scale=([\d.]+)/);

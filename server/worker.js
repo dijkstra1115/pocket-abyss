@@ -42,7 +42,9 @@ export default {
         const room = {
           v: 1, code, seed: b.seed >>> 0, boss: b.boss,
           players: [{ n: String(b.player.n).slice(0, 8), h: b.player.h, dmg: 0 }],
-          pool, remaining: pool, runs: [], created: Date.now(),
+          pool, remaining: pool, runs: [],
+          exp: { floor: 1, best: 1, runs: [] },   /* 雙人深淵遠征共享進度 */
+          created: Date.now(),
         };
         await env.ROOMS.put('room:' + code, JSON.stringify(room), { expirationTtl: TTL });
         return json(room);
@@ -52,6 +54,7 @@ export default {
       const raw = await env.ROOMS.get('room:' + code);
       if (!raw) return json({ err: 'room not found' }, 404);
       const room = JSON.parse(raw);
+      if (!room.exp) room.exp = { floor: 1, best: 1, runs: [] }; /* 舊房補欄位 */
 
       /* GET /room/CODE — 讀房間狀態 */
       if (req.method === 'GET') return json(room);
@@ -89,6 +92,22 @@ export default {
           room.remaining = Math.max(0, room.remaining - dmg);
           room.runs.unshift({ n: name, seed: (+b.seed >>> 0) || 0, dmg, ts: Date.now() });
           room.runs = room.runs.slice(0, 10);
+          await env.ROOMS.put('room:' + code, JSON.stringify(room), { expirationTtl: TTL });
+        }
+        return json(room);
+      }
+
+      /* POST /room/CODE/exp — 回報遠征推進（共享深度只前進不後退） */
+      if (action === 'exp') {
+        const name = String(b.n || '').slice(0, 8);
+        if (!room.players.find(p => p.n === name)) return json({ err: 'not in room' }, 403);
+        const from = Math.max(1, Math.floor(+b.from || 1));
+        const to = Math.max(from, Math.min(Math.floor(+b.to || from), from + 50));
+        if (to > from) {
+          room.exp.floor = Math.max(room.exp.floor, to);
+          room.exp.best = Math.max(room.exp.best, room.exp.floor);
+          room.exp.runs.unshift({ n: name, from, to, seed: (+b.seed >>> 0) || 0, ts: Date.now() });
+          room.exp.runs = room.exp.runs.slice(0, 10);
           await env.ROOMS.put('room:' + code, JSON.stringify(room), { expirationTtl: TTL });
         }
         return json(room);
