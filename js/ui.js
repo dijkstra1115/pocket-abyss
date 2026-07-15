@@ -1360,8 +1360,9 @@ const UI = {
       <div class="set-row" style="margin-top:4px"><span>朋友給的房碼</span>
         <span><input id="room-code" maxlength="6" style="width:80px;text-transform:uppercase" placeholder="ABC123">
         <button id="room-join" class="accent">加入</button></span></div>
-      <div class="hint">兩人共同磨同一條王血池（兩人時血池×1.7）；
-      各自出戰、傷害即時累積，雙方都看得到彼此貢獻。</div>
+      <div class="hint">房間裡有兩種玩法（開房或加入後出現）：<br>
+      ⚔ <b>共鬥王</b> — 兩人共磨同一條王血池（雙人血池×1.7），傷害即時累積<br>
+      ⛏ <b>深淵遠征</b> — 六人同行接力爬層，你推到哪隊友就從哪接棒</div>
       <details style="margin-top:8px" ${this.raidPreview ? 'open' : ''}><summary class="hint" style="cursor:pointer">▸ 不用網路的碼交換模式（挑戰碼 / 戰報碼）</summary>
       <div class="hint">① 產生挑戰碼傳給朋友 ② 朋友貼上開戰後把「戰報碼」傳回 ③ 你貼上重播出逐幀相同的戰鬥</div>
       <div class="btn-row" style="margin-top:4px"><button id="raid-make">產生挑戰碼（帶上我的隊伍）</button></div>
