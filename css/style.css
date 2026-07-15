@@ -329,6 +329,20 @@ textarea {
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes toast-out { to { opacity: 0; } }
 
+/* ---------- 更新橫幅 ---------- */
+#update-bar {
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 70;
+  background: #2e2450;
+  border-bottom: 2px solid var(--border-hi);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+#update-bar:hover { background: #3a2d66; }
+
 /* ---------- 迷你模式 ---------- */
 body.mini #tabs, body.mini #panel { display: none; }
 body.mini #app { height: auto; }

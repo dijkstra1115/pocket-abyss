@@ -68,12 +68,21 @@ const Raid = {
   },
 
   encode(input) { return btoa(unescape(encodeURIComponent(JSON.stringify(input)))); },
+  decodeErr: null, /* 'format' | 'version' */
   decode(str) {
+    this.decodeErr = null;
     try {
       const o = JSON.parse(decodeURIComponent(escape(atob(String(str).trim()))));
-      if (!o || o.v !== RAID_VERSION || !o.boss || !Array.isArray(o.teams) || !o.teams.length) return null;
+      if (!o || !o.boss || !Array.isArray(o.teams) || !o.teams.length) {
+        this.decodeErr = 'format';
+        return null;
+      }
+      if (o.v !== RAID_VERSION) {
+        this.decodeErr = 'version';
+        return null;
+      }
       return o;
-    } catch (e) { return null; }
+    } catch (e) { this.decodeErr = 'format'; return null; }
   },
 
   /* ---------- Prompt 1：固定步長模擬核心 ---------- */

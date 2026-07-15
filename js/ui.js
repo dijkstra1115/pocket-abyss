@@ -1493,7 +1493,12 @@ const UI = {
     const load = p.querySelector('#raid-load');
     if (load) load.onclick = () => {
       const obj = Raid.decode(p.querySelector('#raid-in').value);
-      if (!obj) { this.toast('這不是有效的挑戰碼/戰報碼'); return; }
+      if (!obj) {
+        this.toast(Raid.decodeErr === 'version'
+          ? '版本不合：請兩邊都按 Ctrl+Shift+R 更新到最新版後重試'
+          : '這不是有效的挑戰碼/戰報碼');
+        return;
+      }
       if (obj.teams.length > 2) { this.toast('隊伍數量異常'); return; }
       this.raidPreview = obj;
       const keep = p.querySelector('#raid-in').value;
@@ -1549,6 +1554,10 @@ const UI = {
     const code = Game.state.settings.roomCode;
     if (!code) return;
     Raid.getRoom(code).then(room => {
+      if (room.v !== 1) {
+        this.toast('房間版本不合，請兩邊都更新後重開房');
+        return;
+      }
       this.roomData = room;
       this.syncRoomLevel(room);
       if (this.tab === 'raid' && !this.raid) this.renderPanel();
@@ -1560,6 +1569,19 @@ const UI = {
         if (this.tab === 'raid' && !this.raid) this.renderPanel();
       }
     });
+  },
+
+  /* 新版本更新橫幅 */
+  showUpdateBar() {
+    if (document.getElementById('update-bar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'update-bar';
+    bar.textContent = '🔄 新版本已釋出 — 點此立即更新（存檔不受影響）';
+    bar.onclick = () => {
+      Game.save();
+      location.reload();
+    };
+    document.body.appendChild(bar);
   },
 
   copyText(str) {

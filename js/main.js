@@ -12,6 +12,8 @@
   if (location.hash.includes('dbg=1')) {
     document.title = `${window.innerWidth}x${window.innerHeight} dpr${window.devicePixelRatio}`;
   }
+  /* 除錯：#verdemo 直接顯示更新橫幅 */
+  if (location.hash.includes('verdemo')) setTimeout(() => UI.showUpdateBar(), 1500);
   /* 除錯：#expdemo 本機直接開一場遠征（視覺驗證用） */
   if (location.hash.includes('expdemo')) {
     setTimeout(() => {
@@ -125,4 +127,26 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) Game.save();
   });
+
+  /* 線上版本檢查：長開的掛機頁面發現新版時顯示更新橫幅 */
+  if (location.protocol.startsWith('http')) {
+    let notified = false;
+    const checkVer = () => {
+      if (notified) return;
+      fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
+        .then(r => r.json())
+        .then(d => {
+          if (d && d.v > GAME_VERSION && !notified) {
+            notified = true;
+            UI.showUpdateBar();
+          }
+        })
+        .catch(() => { /* 離線時忽略 */ });
+    };
+    setInterval(checkVer, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) checkVer();
+    });
+    setTimeout(checkVer, 30 * 1000);
+  }
 })();
