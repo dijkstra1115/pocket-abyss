@@ -1317,7 +1317,7 @@ const UI = {
         ${bossName} Lv${rm.boss.lv} — 共同血池 ${(pct * 100).toFixed(1)}%<br>
         <span class="hint">${Game.fmt(rm.remaining / 10)} / ${Game.fmt(rm.pool / 10)}${rm.players.length < 2 ? ' · 等第二位參戰（血池將×1.7）' : ''}</span><br>` +
         rm.players.map(pl =>
-          `<span style="color:${pl.n === st.settings.playerName ? '#7dd87d' : '#c9c9d8'}">${pl.n === st.settings.playerName ? '★' : '◇'} ${pl.n} — 累積 ${Game.fmt(pl.dmg / 10)}</span>`
+          `<span style="color:${pl.n === st.settings.playerName ? '#7dd87d' : '#c9c9d8'}">${pl.n === st.settings.playerName ? '★' : '◇'} ${pl.n} Lv${(pl.h && pl.h[0] && pl.h[0].l) || '?'} — 累積 ${Game.fmt(pl.dmg / 10)}</span>`
         ).join('<br>') +
         `${cleared ? '<br>🎉 共鬥王已被你們擊破！' : ''}</div>
         <div class="btn-row">
@@ -1433,6 +1433,7 @@ const UI = {
         this.roomData = room;
         Game.save();
         this.toast('已加入房間！');
+        this.syncRoomLevel(room);
         this.renderPanel();
       } catch (e) {
         this.toast(e.message === 'room full' ? '房間已滿（兩人）' : '加入失敗：' + e.message);
@@ -1517,11 +1518,39 @@ const UI = {
   roomData: null,
   _pollN: 0,
 
+  /* 房間等級同步：隊伍等級拉平到兩人中較高者；並保持房內快照最新 */
+  syncRoomLevel(room) {
+    const st = Game.state;
+    const myName = st.settings.playerName;
+    let best = 0, who = '';
+    for (const p of room.players) {
+      if (p.n === myName) continue;
+      const lv = (p.h && p.h[0] && p.h[0].l) || 0;
+      if (lv > best) { best = lv; who = p.n; }
+    }
+    if (best > st.teamLv) {
+      st.teamLv = best;
+      st.teamXp = 0;
+      st.stats.maxHeroLv = Math.max(st.stats.maxHeroLv, best);
+      Game.dirty();
+      Game.save();
+      this.toast(`⚡ 與 ${who} 等級同步：隊伍升到 Lv${best}！`);
+    }
+    /* 我的等級/裝備有變 → 更新房內快照，讓隊友那邊也能同步 */
+    const me = room.players.find(p => p.n === myName);
+    if (me && me.h && me.h[0] && me.h[0].l !== st.teamLv) {
+      Raid.joinRoom(room.code, myName)
+        .then(r => { this.roomData = r; })
+        .catch(() => { /* 下次輪詢再試 */ });
+    }
+  },
+
   loadRoom() {
     const code = Game.state.settings.roomCode;
     if (!code) return;
     Raid.getRoom(code).then(room => {
       this.roomData = room;
+      this.syncRoomLevel(room);
       if (this.tab === 'raid' && !this.raid) this.renderPanel();
     }).catch(e => {
       if (String(e.message).includes('not found')) {
