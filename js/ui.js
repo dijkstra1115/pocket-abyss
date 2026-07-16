@@ -1076,9 +1076,22 @@ const UI = {
     }
     const up = Game.upgradeCost(it);
     const maxQ = it.q >= 11;
+    let upPrev = '';
+    if (!maxQ) {
+      const cur = Game.itemBaseStats(it);
+      const nxt = Game.itemBaseStats({ ...it, q: it.q + 1 });
+      const labels = { atk: '攻', hp: '命', def: '防' };
+      const parts = ['atk', 'hp', 'def'].map(k => {
+        const d = nxt[k] - cur[k];
+        return d ? `${labels[k]} ${Game.fmt(cur[k])}→${Game.fmt(nxt[k])} <i class="up">(+${Game.fmt(d)})</i>` : '';
+      }).filter(Boolean);
+      if (it.aff.length < DATA.affixCount[it.q + 1]) parts.push('<i class="up">+1 新詞綴</i>');
+      if (parts.length) upPrev = `<div class="cost">${parts.join(' · ')}</div>`;
+    }
     return `<div class="forge-target" id="forge-pick">${this.itemDetailHTML(it)}
         <span class="hint">（點擊更換鍛造目標）</span></div>
       <div class="forge-op"><div>升品 ${maxQ ? '<span class="hint">已達創世</span>' : `→ ${this.qname(it.q + 1)}`}
+          ${upPrev}
           <div class="cost">${Game.fmt(up.dust)} 星塵 + ${Game.fmt(up.gold)} 金幣</div></div>
         <button id="op-up" ${!maxQ && Game.canUpgrade(it) ? '' : 'disabled'}>升品</button></div>
       <div class="forge-op"><div>重鑄詞綴
@@ -1143,23 +1156,33 @@ const UI = {
     const keys = Object.keys(st.cores);
     let html = `<div class="hint">Boss 有機率掉落星核；3 顆同系同階可熔合升階。<br>鑲嵌需要裝備先有插槽（鍛造→鑿孔）。</div>`;
     if (!keys.length) return html + '<div class="hint" style="margin-top:8px">目前沒有星核，去打 Boss 吧！</div>';
-    keys.sort();
-    html += '<div class="core-grid" style="margin-top:6px">';
-    for (const key of keys) {
-      const [type, tierS] = key.split('_');
-      const tier = +tierS;
+    for (const type of DATA.coreTypeOrder) {
       const ct = DATA.coreTypes[type];
-      const n = st.cores[key];
-      html += `<div class="core-cell">
-        <span><i class="core-dot" style="background:${ct.color}"></i>${DATA.coreTiers[tier].name}·${ct.name}
-          <span class="hint">×${n}</span><br>
-          <span class="hint">${DATA.affixes[ct.stat].name} +${ct.base * DATA.coreTiers[tier].mult}%</span></span>
-        <span>
-          <button data-fuse="${key}" ${n >= 3 && tier < 4 ? '' : 'disabled'}>熔合</button>
-          <button data-socket="${key}" class="accent">鑲嵌</button>
-        </span></div>`;
+      const tiers = [];
+      for (let tier = 0; tier < DATA.coreTiers.length; tier++) {
+        const n = st.cores[`${type}_${tier}`];
+        if (n) tiers.push([tier, n]);
+      }
+      if (!tiers.length) continue;
+      const total = tiers.reduce((s, [, n]) => s + n, 0);
+      html += `<div class="core-head"><i class="core-dot" style="background:${ct.color}"></i>
+          <b style="color:${ct.color}">${ct.name}</b>
+          <span class="hint">${DATA.affixes[ct.stat].name}</span>
+          <span class="hint core-total">共 ${total} 顆</span></div>
+        <div class="core-grid">`;
+      for (const [tier, n] of tiers) {
+        const key = `${type}_${tier}`;
+        html += `<div class="core-cell">
+          <span>${DATA.coreTiers[tier].name} <span class="hint">×${n}</span><br>
+            <span class="hint">${DATA.affixes[ct.stat].name} +${ct.base * DATA.coreTiers[tier].mult}%</span></span>
+          <span>
+            <button data-fuse="${key}" ${n >= 3 && tier < 4 ? '' : 'disabled'}>熔合</button>
+            <button data-socket="${key}" class="accent">鑲嵌</button>
+          </span></div>`;
+      }
+      html += '</div>';
     }
-    return html + '</div>';
+    return html;
   },
 
   bindCore(p) {

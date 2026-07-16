@@ -247,6 +247,8 @@ i.up, i.down, i.flat { font-style: normal; }
 .forge-op { display: flex; justify-content: space-between; align-items: center;
   border: 2px solid var(--border); background: var(--panel2); padding: 5px 6px; margin-bottom: 4px; }
 .forge-op .cost { font-size: 11px; color: var(--dim); }
+.core-head { display: flex; align-items: center; gap: 4px; margin: 8px 0 4px; font-size: 12px; }
+.core-head .core-total { margin-left: auto; }
 .core-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .core-cell {
   border: 2px solid var(--border); background: var(--panel2);
