@@ -1590,8 +1590,8 @@ const UI = {
     const code = Game.state.settings.roomCode;
     if (!code) return;
     Raid.getRoom(code).then(room => {
-      if (room.v !== 1) {
-        this.toast('房間版本不合，請兩邊都更新後重開房');
+      if (room.v !== 2) {
+        this.toast('房間版本不合，請兩邊都更新到最新版後重開房');
         return;
       }
       this.roomData = room;

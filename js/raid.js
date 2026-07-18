@@ -5,7 +5,7 @@
 
 const RAID_TPS = 10;          /* 每秒邏輯 tick 數（固定步長） */
 const RAID_MAX_TICKS = 600;   /* 60 秒戰鬥上限 */
-const RAID_VERSION = 1;
+const RAID_VERSION = 2; /* v2：前排承傷（各隊末位 70% 機率被攻擊） */
 
 const Raid = {
   /* ---------- 種子亂數（mulberry32，跨引擎一致） ---------- */
@@ -102,6 +102,18 @@ const Raid = {
     };
   },
 
+  /* 前排承傷（RAID_VERSION 2）：各隊最後一位存活者為前排，70% 機率被打。
+     只用種子亂數，且 alive 依隊列固定順序 → 跨裝置重播一致 */
+  pickHeroTarget(st, alive) {
+    if (alive.length === 1) return alive[0];
+    const lastByTeam = [];
+    for (const h of alive) lastByTeam[h.team] = h;
+    const fronts = lastByTeam.filter(Boolean);
+    const backs = alive.filter(h => lastByTeam[h.team] !== h);
+    if (!backs.length || this.rInt(st.rng, 100) < 70) return fronts[this.rInt(st.rng, fronts.length)];
+    return backs[this.rInt(st.rng, backs.length)];
+  },
+
   stepTick(st) {
     if (st.done) return;
     st.tick++;
@@ -128,7 +140,7 @@ const Raid = {
       boss.atkT += st.input.boss.itv;
       const alive = st.heroes.filter(h => h.hp > 0);
       if (!alive.length) { st.done = true; return; }
-      const t = alive[this.rInt(st.rng, alive.length)];
+      const t = this.pickHeroTarget(st, alive);
       const r = 90 + this.rInt(st.rng, 21);
       const raw = Math.floor(st.input.boss.atk * r / 100);
       const denom = t.s.def + (25 + st.input.boss.lv * 3) * 10;
@@ -369,7 +381,7 @@ const Raid = {
       m.atkT += m.itv;
       const alive = st.heroes.filter(h => h.hp > 0);
       if (!alive.length) break;
-      const t = alive[this.rInt(st.rng, alive.length)];
+      const t = this.pickHeroTarget(st, alive);
       const r = 90 + this.rInt(st.rng, 21);
       const raw = Math.floor(m.atk * r / 100);
       const denom = t.s.def + (25 + st.floor * 3) * 10;
@@ -447,7 +459,7 @@ const Raid = {
 
   createRoom(raidLv, name) {
     return this.api('/room', {
-      v: 1,
+      v: 2, /* 房間格式版本＝模擬規則版本：v2 起含前排承傷 */
       seed: (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 1,
       boss: this.bossConfig(raidLv),
       player: { n: name, h: this.mySnapshots() },

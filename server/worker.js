@@ -32,7 +32,8 @@ export default {
       /* POST /room — 開房 */
       if (req.method === 'POST' && parts.length === 1) {
         const b = await req.json();
-        if (!b || b.v !== 1 || !b.boss || !b.player ||
+        /* v1=舊模擬規則、v2=前排承傷：同時接受，讓未更新的客戶端仍可互開 v1 房 */
+        if (!b || (b.v !== 1 && b.v !== 2) || !b.boss || !b.player ||
             !Array.isArray(b.player.h) || !b.player.h.length || b.player.h.length > 3)
           return json({ err: 'bad request' }, 400);
         if (JSON.stringify(b).length > 4000) return json({ err: 'too large' }, 400);
@@ -40,7 +41,7 @@ export default {
         do { code = newCode(); } while (await env.ROOMS.get('room:' + code) && ++tries < 5);
         const pool = poolFor(b.boss.hp, 1);
         const room = {
-          v: 1, code, seed: b.seed >>> 0, boss: b.boss,
+          v: b.v, code, seed: b.seed >>> 0, boss: b.boss,
           players: [{ n: String(b.player.n).slice(0, 8), h: b.player.h, dmg: 0 }],
           pool, remaining: pool, runs: [],
           exp: { floor: 1, best: 1, runs: [] },   /* 雙人深淵遠征共享進度 */

@@ -96,6 +96,21 @@ if (it) {
   if (s0 < 3) { assert(Game.addSocket(it), '鑿孔成功'); assert(it.sockets === s0 + 1, '插槽+1'); }
 }
 
+/* --- 共鬥前排承傷（RAID_VERSION 2）：各隊末位應承受多數王的攻擊 --- */
+{
+  const st = Raid.init(Raid.testInput());
+  const tally = {};
+  while (!st.done) {
+    Raid.stepTick(st);
+    for (const e of st.events) if (e.k === 'bhit') tally[e.t] = (tally[e.t] || 0) + 1;
+    st.events.length = 0;
+  }
+  const total = Object.values(tally).reduce((a, b) => a + b, 0);
+  const frontHits = (tally[2] || 0) + (tally[5] || 0);
+  assert(total > 0 && frontHits / total > 0.5,
+    `共鬥前排承傷過半 (${frontHits}/${total})`);
+}
+
 /* --- 前排承傷 --- */
 {
   if (s.party.length >= 2) {
