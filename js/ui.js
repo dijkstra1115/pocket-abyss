@@ -496,6 +496,7 @@ const UI = {
       Raid.postExp(R.cloud.code, name, from, to, R.cloud.seed)
         .then(room => {
           this.roomData = room;
+          this.syncRoomLevel(room);
           if (to > from) this.toast(`共享深度推進到第 ${room.exp.floor} 層！`);
           if (this.raid === R) this.renderPanel();
         })
@@ -507,6 +508,7 @@ const UI = {
     Raid.postDamage(R.cloud.code, name, myDmg, R.cloud.seed)
       .then(room => {
         this.roomData = room;
+        this.syncRoomLevel(room);
         this.toast(`已回報傷害 ${Game.fmt(myDmg / 10)}`);
         if (this.raid === R) this.renderPanel();
       })
@@ -766,10 +768,11 @@ const UI = {
     if (['party', 'ascend', 'achv', 'core', 'forge'].includes(this.tab)) this.renderPanel();
     /* 共鬥戰鬥中：即時更新傷害統計（此狀態無輸入框） */
     if (this.tab === 'raid' && this.raid && !this.raid.st.done) this.renderPanel();
-    /* 雲端房間：每 10 秒輪詢共享血池 */
-    if (this.tab === 'raid' && !this.raid && Game.state.settings.roomCode) {
+    /* 雲端房間輪詢：共鬥分頁 10 秒、其他分頁 30 秒一次，
+       讓等級/快照同步不必停在共鬥分頁才發生（戰鬥中暫停） */
+    if (!this.raid && Game.state.settings.roomCode) {
       this._pollN++;
-      if (this._pollN % 5 === 0) this.loadRoom();
+      if (this._pollN % (this.tab === 'raid' ? 5 : 15) === 0) this.loadRoom();
     }
   },
 

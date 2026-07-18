@@ -141,6 +141,8 @@ if (it) {
 
 /* --- 依等級自動分解 --- */
 {
+  /* 模擬期間背包可能已滿：先騰空間，避免誤入「背包滿→轉星塵」路徑 */
+  while (s.inventory.length > 55) Game.salvage(s.inventory[s.inventory.length - 1].id);
   const mk = (id, lv) => ({ id, base: DATA.bases[0].id, slot: DATA.bases[0].slot, lv, q: 5, aff: [], sockets: 0, gems: [] });
   s.inventory.push(mk(90001, 3), mk(90002, 99));
   const r = Game.salvageBelow(0, 10);
