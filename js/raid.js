@@ -22,7 +22,7 @@ const Raid = {
 
   /* ---------- Prompt 2：隊伍快照（重播所需最小欄位，全部整數） ---------- */
   mySnapshots() {
-    return Game.state.party.map(cls => {
+    return Game.raidPartyList().map(cls => {
       const s = Game.heroStats(cls);
       const c = DATA.classes[cls];
       return {

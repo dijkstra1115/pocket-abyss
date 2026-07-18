@@ -111,6 +111,18 @@ if (it) {
     `共鬥前排承傷過半 (${frontHits}/${total})`);
 }
 
+/* --- 自訂共鬥隊伍 --- */
+{
+  s.raidParty = null;
+  assert(Raid.mySnapshots().map(h => h.c).join(',') === s.party.join(','), '共鬥隊伍預設跟隨單機');
+  s.raidParty = [s.party[0]];
+  const snap = Raid.mySnapshots();
+  assert(snap.length === 1 && snap[0].c === s.party[0], '自訂共鬥隊伍生效');
+  s.raidParty = ['nope'];
+  assert(Raid.mySnapshots().map(h => h.c).join(',') === s.party.join(','), '無效自訂回退單機隊伍');
+  s.raidParty = null;
+}
+
 /* --- 前排承傷 --- */
 {
   if (s.party.length >= 2) {

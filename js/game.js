@@ -28,6 +28,7 @@ const Game = {
         mage: { equip: {} },
       },
       party: ['blade', 'ranger', 'mage'],
+      raidParty: null, /* 共鬥專用隊伍；null = 跟隨單機上陣 */
       inventory: [],
       cores: {},
       talents: {},
@@ -820,6 +821,13 @@ const Game = {
     this.emit({ k: 'unlock', cls });
     this.dirty();
     return true;
+  },
+
+  /* 共鬥出戰名單：自訂優先（過濾未解鎖者），沒有有效自訂就跟隨單機上陣 */
+  raidPartyList() {
+    const st = this.state;
+    const own = (st.raidParty || []).filter(c => st.heroes[c]);
+    return own.length ? own.slice(0, 3) : [...st.party];
   },
 
   /* 指定前排：移到隊列最後（最靠近怪物）；戰鬥中就地換位、保留血量 */

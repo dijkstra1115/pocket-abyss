@@ -1340,7 +1340,7 @@ const UI = {
     const opts = floors.map(f =>
       `<option value="${f}">Lv${f} ${DATA.zones[Game.zoneIdx(f)].boss.name}</option>`).join('');
 
-    let html = `<div class="section-title">和朋友同框並肩打共鬥王</div>`;
+    let html = `<div class="section-title">和朋友同框並肩打共鬥王</div>` + this.htmlRaidTeam();
 
     /* 雲端房間視圖 */
     if (st.settings.roomCode && this.roomData) {
@@ -1419,7 +1419,45 @@ const UI = {
     return html;
   },
 
+  /* 共鬥隊伍設定：預設跟隨單機上陣，可自訂人選與站位 */
+  htmlRaidTeam() {
+    const st = Game.state;
+    const custom = !!(st.raidParty && st.raidParty.length);
+    const list = Game.raidPartyList();
+    let html = `<div class="raid-box" style="margin-bottom:6px">共鬥隊伍
+      <button id="rt-mode" style="margin-left:6px">${custom ? '改回跟隨單機' : '自訂'}</button><br>`;
+    if (custom) {
+      html += `<div style="margin:4px 0">` + DATA.classOrder.filter(c => st.heroes[c]).map(c => {
+        const i = st.raidParty.indexOf(c);
+        return `<button data-rt="${c}" class="${i >= 0 ? 'accent' : ''}">${i >= 0 ? (i + 1) + '. ' : ''}${DATA.classes[c].name}</button>`;
+      }).join(' ') + `</div>
+      <span class="hint">點選加入/移出（1–3 人）；越晚加入站越前面</span><br>`;
+    }
+    html += `<span class="hint">出戰：${list.map((c, i) =>
+      DATA.classes[c].name + (i === list.length - 1 && list.length > 1 ? '（前排）' : '')).join('、')}</span></div>`;
+    return html;
+  },
+
   bindRaid(p) {
+    const rtm = p.querySelector('#rt-mode');
+    if (rtm) rtm.onclick = () => {
+      const st = Game.state;
+      st.raidParty = (st.raidParty && st.raidParty.length) ? null : [...st.party];
+      Game.save(); this.renderPanel();
+    };
+    p.querySelectorAll('[data-rt]').forEach(b => b.onclick = () => {
+      const st = Game.state;
+      if (!st.raidParty) return;
+      const i = st.raidParty.indexOf(b.dataset.rt);
+      if (i >= 0) {
+        if (st.raidParty.length <= 1) { this.toast('至少要留一位'); return; }
+        st.raidParty.splice(i, 1);
+      } else {
+        if (st.raidParty.length >= 3) { this.toast('最多三位，先移出一位'); return; }
+        st.raidParty.push(b.dataset.rt);
+      }
+      Game.save(); this.renderPanel();
+    });
     const R = this.raid;
     if (R) {
       const sp = p.querySelector('#raid-speed');
