@@ -168,6 +168,19 @@ if (it && it.sockets > 0) {
   assert(Game.socketCore(s.heroes.blade.equip[it.slot], 'flame', 0) || true, '鑲嵌已裝備物品');
 }
 
+/* --- 貪婪星核移除遷移 + 生命星核 --- */
+{
+  assert(DATA.coreTypes.sage.stat === 'hpP' && !DATA.coreTypes.greed, '生命星核=hpP，貪婪已自資料移除');
+  s.cores['greed_1'] = 2;
+  const sageBefore = s.cores['sage_1'] || 0;
+  const gi = { id: 91001, base: DATA.bases[0].id, slot: DATA.bases[0].slot, lv: 5, q: 3, aff: [], sockets: 1, gems: ['greed_0'] };
+  s.inventory.push(gi);
+  Game.migrate();
+  assert(!s.cores['greed_1'] && (s.cores['sage_1'] || 0) === sageBefore + 2, '庫存貪婪星核轉同階生命星核');
+  assert(gi.gems[0] === 'sage_0', '已鑲嵌貪婪星核一併轉換');
+  s.inventory = s.inventory.filter(i => i.id !== 91001);
+}
+
 /* --- 昇華 --- */
 if (s.runMaxFloor < 50) { s.runMaxFloor = 60; s.maxFloorEver = Math.max(s.maxFloorEver, 60); s.stats.maxFloorEver = s.maxFloorEver; }
 const gain = Game.emberGain();

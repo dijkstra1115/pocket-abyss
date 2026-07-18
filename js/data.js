@@ -141,17 +141,17 @@ DATA.affixes = {
 };
 DATA.affixKeys = Object.keys(DATA.affixes);
 
-/* ---------- 星核：7 系 × 5 階 ---------- */
+/* ---------- 星核：6 系 × 5 階 ---------- */
 DATA.coreTypes = {
   flame: { name: '烈焰星核', stat: 'atkP',  base: 5, color: '#ff6b3d' },
   rock:  { name: '磐石星核', stat: 'defP',  base: 6, color: '#b0895a' },
   gale:  { name: '疾風星核', stat: 'aspd',  base: 4, color: '#7dd8a0' },
   keen:  { name: '銳目星核', stat: 'crit',  base: 3, color: '#ffd94d' },
   blood: { name: '血月星核', stat: 'leech', base: 2, color: '#e8536b' },
-  greed: { name: '貪婪星核', stat: 'goldP', base: 7, color: '#f0c040' },
-  sage:  { name: '智慧星核', stat: 'xpP',   base: 7, color: '#6da2ff' },
+  /* 鍵沿用 sage：舊存檔的智慧星核原地變生命星核，不需搬資料 */
+  sage:  { name: '生命星核', stat: 'hpP',   base: 6, color: '#ff8fb3' },
 };
-DATA.coreTypeOrder = ['flame', 'rock', 'gale', 'keen', 'blood', 'greed', 'sage'];
+DATA.coreTypeOrder = ['flame', 'rock', 'gale', 'keen', 'blood', 'sage'];
 DATA.coreTiers = [
   { name: '碎片', mult: 1 },
   { name: '凝聚', mult: 2 },

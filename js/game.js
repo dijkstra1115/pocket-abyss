@@ -80,6 +80,20 @@ const Game = {
       delete st.heroes[cls].lv;
       delete st.heroes[cls].xp;
     }
+    /* 貪婪星核已移除：庫存與已鑲嵌者轉為同階生命星核（sage） */
+    for (const k of Object.keys(st.cores || {})) {
+      if (k.startsWith('greed_')) {
+        const nk = 'sage_' + k.split('_')[1];
+        st.cores[nk] = (st.cores[nk] || 0) + st.cores[k];
+        delete st.cores[k];
+      }
+    }
+    const fixGems = it => { if (it && it.gems) it.gems = it.gems.map(g => g.replace(/^greed_/, 'sage_')); };
+    (st.inventory || []).forEach(fixGems);
+    for (const cls of Object.keys(st.heroes)) {
+      const eq = st.heroes[cls].equip || {};
+      for (const s of Object.keys(eq)) fixGems(eq[s]);
+    }
   },
 
   exportSave() {
