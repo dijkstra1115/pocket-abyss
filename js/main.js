@@ -94,12 +94,19 @@
     if (btn) btn.click();
   }
 
-  /* 邏輯迴圈：setInterval 在背景分頁仍會（降頻）觸發，掛機不中斷 */
+  /* 邏輯迴圈：桌機背景分頁 setInterval 只是降頻；手機切背景／鎖屏會整頁凍結，
+     恢復時間隔會一次跳很大 — 長中斷改走離線結算，短中斷逐步補算 */
   let last = Date.now();
   setInterval(() => {
     const now = Date.now();
-    let dt = Math.min((now - last) / 1000, 30); /* 極端凍結視同小段掛機 */
+    let dt = (now - last) / 1000;
     last = now;
+    if (dt > 120) {
+      const off = Game.offline(dt);
+      if (off) UI.showOffline(off);
+      UI.drain();
+      return;
+    }
     while (dt > 0) {
       const step = Math.min(dt, 0.25);
       Game.tick(step);
