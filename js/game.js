@@ -38,7 +38,7 @@ const Game = {
         playtime: 0,
       },
       kps: 0.2,
-      settings: { autoAdvance: true, autoSalv: 0, mini: false, uiScale: 1, playerName: '勇者', roomCode: '' },
+      settings: { autoAdvance: true, autoSalv: 0, autoSalvLv: 0, mini: false, uiScale: 1, playerName: '勇者', roomCode: '' },
       lastSeen: Date.now(),
     };
   },
@@ -586,7 +586,8 @@ const Game = {
     const st = this.state;
     st.stats.itemsFound++;
     if (item.q > st.stats.bestQuality) st.stats.bestQuality = item.q;
-    if (item.q < st.settings.autoSalv) {
+    if (item.q < st.settings.autoSalv ||
+        (st.settings.autoSalvLv > 0 && item.lv < st.settings.autoSalvLv)) {
       st.dust += this.dustFor(item);
       st.stats.itemsSalvaged++;
       return;
@@ -671,11 +672,11 @@ const Game = {
     return d;
   },
 
-  salvageBelow(q) {
+  salvageBelow(q, lv = 0) {
     const st = this.state;
     let n = 0, d = 0;
     for (const item of [...st.inventory]) {
-      if (item.q < q) { d += this.salvage(item.id); n++; }
+      if (item.q < q || (lv > 0 && item.lv < lv)) { d += this.salvage(item.id); n++; }
     }
     return { n, d };
   },

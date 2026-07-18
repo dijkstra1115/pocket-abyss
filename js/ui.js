@@ -1032,6 +1032,9 @@ const UI = {
     return `<div class="bag-tools">
         <select id="bag-filter">${opts}</select>
         <select id="bag-salv">${salvOpts}</select>
+        <label class="salv-lv" title="自動分解低於此等級的裝備（0 或留空停用）">Lv&lt;
+          <input id="bag-salv-lv" type="number" min="0" step="5" inputmode="numeric"
+            value="${st.settings.autoSalvLv || ''}" placeholder="關"></label>
         <button id="bag-salv-now" class="warn">立即分解</button>
         <span class="hint" style="margin-left:auto">${st.inventory.length}/60</span>
       </div>
@@ -1042,10 +1045,14 @@ const UI = {
   bindBag(p) {
     p.querySelector('#bag-filter').onchange = (e) => { this.bagFilter = e.target.value; this.renderPanel(); };
     p.querySelector('#bag-salv').onchange = (e) => { Game.state.settings.autoSalv = +e.target.value; };
+    p.querySelector('#bag-salv-lv').onchange = (e) => {
+      Game.state.settings.autoSalvLv = Math.max(0, Math.floor(+e.target.value || 0));
+    };
     p.querySelector('#bag-salv-now').onclick = () => {
       const q = +p.querySelector('#bag-salv').value;
-      if (q <= 0) { this.toast('先在左側選擇分解門檻'); return; }
-      const r = Game.salvageBelow(q);
+      const lv = Game.state.settings.autoSalvLv;
+      if (q <= 0 && lv <= 0) { this.toast('先在左側選擇分解門檻'); return; }
+      const r = Game.salvageBelow(q, lv);
       this.toast(`分解 ${r.n} 件，+${Game.fmt(r.d)} 星塵`);
       this.renderPanel(); this.renderTop();
     };

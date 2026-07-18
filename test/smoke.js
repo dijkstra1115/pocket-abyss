@@ -96,6 +96,23 @@ if (it) {
   if (s0 < 3) { assert(Game.addSocket(it), '鑿孔成功'); assert(it.sockets === s0 + 1, '插槽+1'); }
 }
 
+/* --- 依等級自動分解 --- */
+{
+  const mk = (id, lv) => ({ id, base: DATA.bases[0].id, slot: DATA.bases[0].slot, lv, q: 5, aff: [], sockets: 0, gems: [] });
+  s.inventory.push(mk(90001, 3), mk(90002, 99));
+  const r = Game.salvageBelow(0, 10);
+  assert(r.n >= 1 && !s.inventory.some(i => i.id === 90001), '手動分解 Lv<10');
+  assert(s.inventory.some(i => i.id === 90002), 'Lv99 保留');
+  s.settings.autoSalvLv = 10;
+  const salvBefore = s.stats.itemsSalvaged;
+  Game.addItem(mk(90003, 3));
+  assert(!s.inventory.some(i => i.id === 90003) && s.stats.itemsSalvaged === salvBefore + 1, '掉落即分解 Lv<10');
+  Game.addItem(mk(90004, 99));
+  assert(s.inventory.some(i => i.id === 90004), '掉落 Lv99 保留');
+  s.inventory = s.inventory.filter(i => i.id !== 90002 && i.id !== 90004);
+  s.settings.autoSalvLv = 0;
+}
+
 /* --- 星核 --- */
 s.cores['flame_0'] = 5;
 const f1Before = s.cores['flame_1'] || 0; /* 模擬期間可能已隨機掉落 */
