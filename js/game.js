@@ -687,6 +687,8 @@ const Game = {
     const st = this.state;
     const item = this.findItem(id);
     if (!item) return 0;
+    /* 鑲嵌中的星核自動退回庫存，不隨裝備銷毀 */
+    for (const g of item.gems) st.cores[g] = (st.cores[g] || 0) + 1;
     const d = this.dustFor(item);
     st.dust += d;
     st.stats.itemsSalvaged++;
@@ -696,11 +698,14 @@ const Game = {
 
   salvageBelow(q, lv = 0) {
     const st = this.state;
-    let n = 0, d = 0;
+    let n = 0, d = 0, c = 0;
     for (const item of [...st.inventory]) {
-      if (item.q < q || (lv > 0 && item.lv < lv)) { d += this.salvage(item.id); n++; }
+      if (item.q < q || (lv > 0 && item.lv < lv)) {
+        c += item.gems.length;
+        d += this.salvage(item.id); n++;
+      }
     }
-    return { n, d };
+    return { n, d, c };
   },
 
   /* ============ 鍛造 ============ */

@@ -967,7 +967,9 @@ const UI = {
     });
     const salv = m.querySelector('[data-salv]');
     if (salv) salv.onclick = () => {
+      const gems = it.gems.length;
       Game.salvage(it.id);
+      if (gems) this.toast(`已退回 ${gems} 顆星核`);
       this.closeModal(); this.renderPanel(); this.renderTop();
     };
     const swap = m.querySelector('[data-swap]');
@@ -1059,7 +1061,7 @@ const UI = {
       const lv = Game.state.settings.autoSalvLv;
       if (q <= 0 && lv <= 0) { this.toast('先在左側選擇分解門檻'); return; }
       const r = Game.salvageBelow(q, lv);
-      this.toast(`分解 ${r.n} 件，+${Game.fmt(r.d)} 星塵`);
+      this.toast(`分解 ${r.n} 件，+${Game.fmt(r.d)} 星塵${r.c ? `，退回 ${r.c} 顆星核` : ''}`);
       this.renderPanel(); this.renderTop();
     };
     p.querySelectorAll('[data-item]').forEach(el => el.onclick = () => {

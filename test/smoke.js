@@ -181,6 +181,18 @@ if (it && it.sockets > 0) {
   s.inventory = s.inventory.filter(i => i.id !== 91001);
 }
 
+/* --- 分解退回星核 --- */
+{
+  const gi = { id: 91002, base: DATA.bases[0].id, slot: DATA.bases[0].slot, lv: 5, q: 3, aff: [], sockets: 2, gems: ['flame_2', 'sage_0'] };
+  s.inventory.push(gi);
+  const f2 = s.cores['flame_2'] || 0, s0 = s.cores['sage_0'] || 0;
+  const d = Game.salvage(91002);
+  assert(d > 0 && !s.inventory.some(i => i.id === 91002), '鑲核裝備可分解');
+  assert((s.cores['flame_2'] || 0) === f2 + 1 && (s.cores['sage_0'] || 0) === s0 + 1, '分解退回星核');
+  const r = Game.salvageBelow(1, 0);
+  assert(typeof r.c === 'number', '批次分解回報退核數');
+}
+
 /* --- 昇華 --- */
 if (s.runMaxFloor < 50) { s.runMaxFloor = 60; s.maxFloorEver = Math.max(s.maxFloorEver, 60); s.stats.maxFloorEver = s.maxFloorEver; }
 const gain = Game.emberGain();
