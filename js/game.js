@@ -201,9 +201,16 @@ const Game = {
 
   heroStats(cls) {
     if (this._cache[cls]) return this._cache[cls];
+    const st = this.heroStatsAt(cls, this.state.teamLv);
+    this._cache[cls] = st;
+    return st;
+  },
+
+  /* 指定隊伍等級計算（共鬥借等級用）：不進快取 */
+  heroStatsAt(cls, teamLv) {
     const c = DATA.classes[cls];
     const h = this.state.heroes[cls];
-    const lvM = 1 + 0.15 * (this.state.teamLv - 1);
+    const lvM = 1 + 0.15 * (teamLv - 1);
     let fAtk = 0, fHp = 0, fDef = 0;
     const bon = {};
     for (const slot of DATA.slotOrder) {
@@ -230,7 +237,6 @@ const Game = {
       healP: bon.healP || 0,
       thorn: bon.thorn || 0,
     };
-    this._cache[cls] = st;
     return st;
   },
 

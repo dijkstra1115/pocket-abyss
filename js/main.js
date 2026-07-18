@@ -37,8 +37,8 @@
         v: 1, code: 'DEMO42', seed: 1,
         boss: { z: 1, lv: 30, hp: 5000000, atk: 800, itv: 16 },
         players: [
-          { n: '小明', h: Raid.mySnapshots(), dmg: 1234560 },
-          { n: '阿華', h: Raid.mySnapshots(), dmg: 987650 },
+          { n: '小明', h: Raid.mySnapshots(0, true), dmg: 1234560 },
+          { n: '阿華', h: Raid.mySnapshots(Game.state.teamLv + 30, true), dmg: 987650 },
         ],
         pool: 8500000, remaining: 6277790,
         runs: [{ n: '阿華', seed: 99, dmg: 987650, ts: 0 }, { n: '小明', seed: 98, dmg: 634560, ts: 0 }],

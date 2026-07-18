@@ -20,13 +20,20 @@ const Raid = {
   },
   rInt(rng, n) { return Math.floor(rng() * n); },
 
-  /* ---------- Prompt 2：隊伍快照（重播所需最小欄位，全部整數） ---------- */
-  mySnapshots() {
+  /* ---------- Prompt 2：隊伍快照（重播所需最小欄位，全部整數） ----------
+     lvBoost：共鬥借等級 — 以房內較高等級重算數值，單機等級（tl）不動。
+     withEq：附上裝備明細（純檢視用，模擬不讀）。挑戰碼不帶以免碼太長 */
+  mySnapshots(lvBoost, withEq) {
+    const lv = Math.max(Game.state.teamLv, lvBoost || 0);
     return Game.raidPartyList().map(cls => {
-      const s = Game.heroStats(cls);
+      const s = Game.heroStatsAt(cls, lv);
       const c = DATA.classes[cls];
+      const eq = withEq ? DATA.slotOrder.map(slot => {
+        const it = Game.state.heroes[cls].equip[slot];
+        return it ? { b: it.base, q: it.q, lv: it.lv, s: it.sockets, g: it.gems, a: it.aff } : 0;
+      }) : undefined;
       return {
-        c: cls, l: Game.state.teamLv,
+        c: cls, l: lv, tl: Game.state.teamLv, eq,
         atk: Math.max(1, Math.floor(s.atk * 10)),
         hp: Math.max(10, Math.floor(s.hp * 10)),
         def: Math.max(0, Math.floor(s.def * 10)),
@@ -462,12 +469,12 @@ const Raid = {
       v: 2, /* 房間格式版本＝模擬規則版本：v2 起含前排承傷 */
       seed: (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 1,
       boss: this.bossConfig(raidLv),
-      player: { n: name, h: this.mySnapshots() },
+      player: { n: name, h: this.mySnapshots(0, true) },
     });
   },
   getRoom(code) { return this.api('/room/' + encodeURIComponent(code)); },
-  joinRoom(code, name) {
-    return this.api('/room/' + encodeURIComponent(code) + '/join', { n: name, h: this.mySnapshots() });
+  joinRoom(code, name, lvBoost) {
+    return this.api('/room/' + encodeURIComponent(code) + '/join', { n: name, h: this.mySnapshots(lvBoost, true) });
   },
   postDamage(code, name, dmg, seed) {
     return this.api('/room/' + encodeURIComponent(code) + '/damage', { n: name, dmg, seed });

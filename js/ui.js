@@ -915,10 +915,10 @@ const UI = {
       html += `<div class="row aff">${DATA.affixes[k].name} +${v}${DATA.affixes[k].unit}</div>`;
     for (let g = 0; g < it.sockets; g++) {
       const gem = it.gems[g];
-      if (gem) {
-        const [type, tier] = gem.split('_');
-        const ct = DATA.coreTypes[type];
-        html += `<div class="row gem">◆ ${DATA.coreTiers[+tier].name}·${ct.name}（${DATA.affixes[ct.stat].name} +${ct.base * DATA.coreTiers[+tier].mult}%）</div>`;
+      const ct = gem && DATA.coreTypes[gem.split('_')[0]];
+      if (ct) {
+        const tier = +gem.split('_')[1];
+        html += `<div class="row gem">◆ ${DATA.coreTiers[tier].name}·${ct.name}（${DATA.affixes[ct.stat].name} +${ct.base * DATA.coreTiers[tier].mult}%）</div>`;
       } else {
         html += `<div class="row socket-empty">◇ 空插槽</div>`;
       }
@@ -1357,9 +1357,11 @@ const UI = {
         房碼 <b>${rm.code}</b>（把它給朋友，7天有效）<br>
         ${bossName} Lv${rm.boss.lv} — 共同血池 ${(pct * 100).toFixed(1)}%<br>
         <span class="hint">${Game.fmt(rm.remaining / 10)} / ${Game.fmt(rm.pool / 10)}${rm.players.length < 2 ? ' · 等第二位參戰（血池將×1.7）' : ''}</span><br>` +
-        rm.players.map(pl =>
-          `<span style="color:${pl.n === st.settings.playerName ? '#7dd87d' : '#c9c9d8'}">${pl.n === st.settings.playerName ? '★' : '◇'} ${pl.n} Lv${(pl.h && pl.h[0] && pl.h[0].l) || '?'} — 累積 ${Game.fmt(pl.dmg / 10)}</span>`
+        rm.players.map((pl, pi) =>
+          `<span style="color:${pl.n === st.settings.playerName ? '#7dd87d' : '#c9c9d8'}">${pl.n === st.settings.playerName ? '★' : '◇'} ${pl.n} Lv${(pl.h && pl.h[0] && pl.h[0].l) || '?'} — 累積 ${Game.fmt(pl.dmg / 10)}</span>
+           <button data-pinfo="${pi}" style="padding:0 5px;font-size:11px">檢視</button>`
         ).join('<br>') +
+        `${this.roomLv > st.teamLv ? `<br><span class="hint">⚡ 等級同步：共鬥以 Lv${this.roomLv} 出戰（單機仍是 Lv${st.teamLv}）</span>` : ''}` +
         `${cleared ? '<br>🎉 共鬥王已被你們擊破！' : ''}</div>
         <div class="btn-row">
           <button id="room-fight" class="accent" ${cleared ? 'disabled' : ''}>⚔ 出戰（60秒）</button>
@@ -1519,6 +1521,10 @@ const UI = {
         jn.disabled = false;
       }
     };
+    p.querySelectorAll('[data-pinfo]').forEach(b => b.onclick = () => {
+      const pl = this.roomData && this.roomData.players[+b.dataset.pinfo];
+      if (pl) this.showPlayerInfo(pl);
+    });
     const rf = p.querySelector('#room-refresh');
     if (rf) rf.onclick = () => { this.loadRoom(); this.toast('已更新'); };
     const rc = p.querySelector('#room-copy');
@@ -1602,31 +1608,62 @@ const UI = {
   roomData: null,
   _pollN: 0,
 
-  /* 房間等級同步：隊伍等級拉平到兩人中較高者；並保持房內快照最新 */
+  /* 房間等級同步（借等級）：共鬥快照以房內較高者的等級出戰，
+     單機等級完全不動。tl = 對方真實等級，避免借來的等級被互相反射鎖死 */
+  roomLv: 0,
   syncRoomLevel(room) {
     const st = Game.state;
     const myName = st.settings.playerName;
     let best = 0, who = '';
     for (const p of room.players) {
       if (p.n === myName) continue;
-      const lv = (p.h && p.h[0] && p.h[0].l) || 0;
+      const h0 = p.h && p.h[0];
+      const lv = (h0 && (h0.tl || h0.l)) || 0;
       if (lv > best) { best = lv; who = p.n; }
     }
+    this.roomLv = Math.max(st.teamLv, best);
     if (best > st.teamLv) {
-      st.teamLv = best;
-      st.teamXp = 0;
-      st.stats.maxHeroLv = Math.max(st.stats.maxHeroLv, best);
-      Game.dirty();
-      Game.save();
-      this.toast(`⚡ 與 ${who} 等級同步：隊伍升到 Lv${best}！`);
+      const key = `${room.code}:${best}`;
+      if (this._lvToastKey !== key) {
+        this._lvToastKey = key;
+        this.toast(`⚡ 共鬥以 ${who} 的 Lv${best} 出戰（不影響單機等級）`);
+      }
     }
     /* 我的等級/角色/裝備有變 → 更新房內快照，讓隊友那邊也能同步 */
     const me = room.players.find(p => p.n === myName);
-    if (me && JSON.stringify(me.h) !== JSON.stringify(Raid.mySnapshots())) {
-      Raid.joinRoom(room.code, myName)
+    if (me && JSON.stringify(me.h) !== JSON.stringify(Raid.mySnapshots(this.roomLv, true))) {
+      Raid.joinRoom(room.code, myName, this.roomLv)
         .then(r => { this.roomData = r; })
         .catch(() => { /* 下次輪詢再試 */ });
     }
+  },
+
+  /* 檢視房內玩家的角色數值與裝備（來自對方快照的 eq 欄位） */
+  showPlayerInfo(pl) {
+    let html = `<h3>${pl.n} 的隊伍</h3>`;
+    for (const s of pl.h) {
+      const c = DATA.classes[s.c];
+      if (!c) continue;
+      html += `<div class="raid-box" style="margin-bottom:6px">
+        <b style="color:${c.color}">${c.name}</b> Lv${s.l}${s.tl && s.tl !== s.l ? ` <span class="hint">（本身 Lv${s.tl}）</span>` : ''}<br>
+        <span class="hint">攻 ${Game.fmt(s.atk / 10)} · 命 ${Game.fmt(s.hp / 10)} · 防 ${Game.fmt(s.def / 10)}
+        · 暴擊 ${(s.crit / 10).toFixed(0)}% · 暴傷 ${(s.critD / 10).toFixed(0)}%${s.leech ? ` · 吸血 ${s.leech / 10}%` : ''}</span>`;
+      if (s.eq) {
+        html += s.eq.map((e, i) => {
+          if (!e) return `<div class="hint" style="margin-top:4px">${DATA.slots[DATA.slotOrder[i]]}：—</div>`;
+          return this.itemDetailHTML({
+            base: e.b, q: e.q, lv: e.lv, slot: DATA.slotOrder[i],
+            sockets: e.s || (e.g || []).length, gems: e.g || [], aff: e.a || [],
+          });
+        }).join('');
+      } else {
+        html += `<div class="hint" style="margin-top:4px">（對方版本較舊，看不到裝備明細）</div>`;
+      }
+      html += '</div>';
+    }
+    html += '<div class="close-row"><button data-close>關閉</button></div>';
+    const m = this.modal(html);
+    m.querySelector('[data-close]').onclick = () => this.closeModal();
   },
 
   loadRoom() {

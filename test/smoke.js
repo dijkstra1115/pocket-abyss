@@ -96,6 +96,20 @@ if (it) {
   if (s0 < 3) { assert(Game.addSocket(it), '鑿孔成功'); assert(it.sockets === s0 + 1, '插槽+1'); }
 }
 
+/* --- 共鬥借等級快照 --- */
+{
+  const lv0 = s.teamLv;
+  const base = Raid.mySnapshots();
+  const boosted = Raid.mySnapshots(lv0 + 50);
+  assert(boosted[0].l === lv0 + 50 && boosted[0].tl === lv0, '借等級：l=房內較高、tl=本身');
+  assert(boosted[0].atk > base[0].atk && boosted[0].hp > base[0].hp, '借等級數值有提升');
+  assert(s.teamLv === lv0, '借等級不動單機等級');
+  assert(Raid.mySnapshots(lv0 - 1)[0].l === lv0, '較低的借等級不會降級');
+  const withEq = Raid.mySnapshots(0, true);
+  assert(Array.isArray(withEq[0].eq) && withEq[0].eq.length === 4, '房間快照含裝備明細');
+  assert(base[0].eq === undefined, '挑戰碼快照不含裝備明細');
+}
+
 /* --- 共鬥前排承傷（RAID_VERSION 2）：各隊末位應承受多數王的攻擊 --- */
 {
   const st = Raid.init(Raid.testInput());

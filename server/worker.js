@@ -36,7 +36,7 @@ export default {
         if (!b || (b.v !== 1 && b.v !== 2) || !b.boss || !b.player ||
             !Array.isArray(b.player.h) || !b.player.h.length || b.player.h.length > 3)
           return json({ err: 'bad request' }, 400);
-        if (JSON.stringify(b).length > 4000) return json({ err: 'too large' }, 400);
+        if (JSON.stringify(b).length > 12000) return json({ err: 'too large' }, 400); /* 快照含裝備明細後放寬 */
         let code, tries = 0;
         do { code = newCode(); } while (await env.ROOMS.get('room:' + code) && ++tries < 5);
         const pool = poolFor(b.boss.hp, 1);
@@ -67,6 +67,7 @@ export default {
       if (action === 'join') {
         if (!b || !Array.isArray(b.h) || !b.h.length || b.h.length > 3)
           return json({ err: 'bad request' }, 400);
+        if (JSON.stringify(b).length > 12000) return json({ err: 'too large' }, 400);
         const name = String(b.n || '').slice(0, 8) || '夥伴';
         const exist = room.players.find(p => p.n === name);
         if (exist) {
