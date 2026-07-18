@@ -1251,7 +1251,7 @@ const UI = {
       昇華可得 <span class="big">${gain}</span> 餘燼
       ${gain <= 0 ? `<div class="hint">（抵達第 40 層開啟昇華）</div>` : ''}
       <div style="margin-top:6px"><button id="asc-btn" class="warn" ${gain > 0 ? '' : 'disabled'}>昇 華</button></div>
-      <div class="hint" style="margin-top:4px">重置：樓層 / 英雄等級 / 金幣<br>保留：裝備 / 星核 / 星塵 / 成就 / 天賦</div>
+      <div class="hint" style="margin-top:4px">重置：樓層 / 英雄等級 / 金幣<br>保留：裝備 / 星核 / 星塵 / 成就 / 天賦 / 共鬥等級（歷史最高）</div>
     </div>`;
     for (const t of DATA.talents) {
       const rank = Game.talentRank(t.id);
@@ -1271,7 +1271,7 @@ const UI = {
     if (btn) btn.onclick = () => {
       const gain = Game.emberGain();
       const m = this.modal(`<h3>確定要昇華嗎？</h3>
-        <div class="hint">獲得 ${gain} 餘燼。樓層、英雄等級與金幣將歸零；<br>裝備、星核、星塵、成就、天賦全部保留。</div>
+        <div class="hint">獲得 ${gain} 餘燼。樓層、英雄等級與金幣將歸零；<br>裝備、星核、星塵、成就、天賦全部保留，共鬥仍以歷史最高等級出戰。</div>
         <div class="btn-row"><button data-yes class="warn">昇華！</button><button data-close>再想想</button></div>`);
       m.querySelector('[data-yes]').onclick = () => {
         Game.ascend();
@@ -1361,7 +1361,7 @@ const UI = {
           `<span style="color:${pl.n === st.settings.playerName ? '#7dd87d' : '#c9c9d8'}">${pl.n === st.settings.playerName ? '★' : '◇'} ${pl.n} Lv${(pl.h && pl.h[0] && pl.h[0].l) || '?'} — 累積 ${Game.fmt(pl.dmg / 10)}</span>
            <button data-pinfo="${pi}" style="padding:0 5px;font-size:11px">檢視</button>`
         ).join('<br>') +
-        `${this.roomLv > st.teamLv ? `<br><span class="hint">⚡ 等級同步：共鬥以 Lv${this.roomLv} 出戰（單機仍是 Lv${st.teamLv}）</span>` : ''}` +
+        `${this.roomLv > st.teamLv ? `<br><span class="hint">⚡ 共鬥以 Lv${this.roomLv} 出戰（歷史最高／房內同步；單機目前 Lv${st.teamLv}）</span>` : ''}` +
         `${cleared ? '<br>🎉 共鬥王已被你們擊破！' : ''}</div>
         <div class="btn-row">
           <button id="room-fight" class="accent" ${cleared ? 'disabled' : ''}>⚔ 出戰（60秒）</button>
@@ -1440,8 +1440,10 @@ const UI = {
       }).join(' ') + `</div>
       <span class="hint">點選加入/移出（1–3 人）；越晚加入站越前面</span><br>`;
     }
+    const raidLv = Math.max(st.teamLv, st.stats.maxHeroLv || 1);
     html += `<span class="hint">出戰：${list.map((c, i) =>
-      DATA.classes[c].name + (i === list.length - 1 && list.length > 1 ? '（前排）' : '')).join('、')}</span></div>`;
+      DATA.classes[c].name + (i === list.length - 1 && list.length > 1 ? '（前排）' : '')).join('、')}
+      · 共鬥等級 Lv${raidLv}${raidLv > st.teamLv ? '（歷史最高，昇華不重置）' : ''}</span></div>`;
     return html;
   },
 
@@ -1621,8 +1623,9 @@ const UI = {
       const lv = (h0 && (h0.tl || h0.l)) || 0;
       if (lv > best) { best = lv; who = p.n; }
     }
-    this.roomLv = Math.max(st.teamLv, best);
-    if (best > st.teamLv) {
+    const myLv = Math.max(st.teamLv, st.stats.maxHeroLv || 1);
+    this.roomLv = Math.max(myLv, best);
+    if (best > myLv) {
       const key = `${room.code}:${best}`;
       if (this._lvToastKey !== key) {
         this._lvToastKey = key;

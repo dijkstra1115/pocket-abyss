@@ -24,7 +24,9 @@ const Raid = {
      lvBoost：共鬥借等級 — 以房內較高等級重算數值，單機等級（tl）不動。
      withEq：附上裝備明細（純檢視用，模擬不讀）。挑戰碼不帶以免碼太長 */
   mySnapshots(lvBoost, withEq) {
-    const lv = Math.max(Game.state.teamLv, lvBoost || 0);
+    /* 共鬥出戰等級取「歷史最高」：昇華重置單機等級不拖累共鬥戰力 */
+    const own = Math.max(Game.state.teamLv, Game.state.stats.maxHeroLv || 1);
+    const lv = Math.max(own, lvBoost || 0);
     return Game.raidPartyList().map(cls => {
       const s = Game.heroStatsAt(cls, lv);
       const c = DATA.classes[cls];
@@ -33,7 +35,7 @@ const Raid = {
         return it ? { b: it.base, q: it.q, lv: it.lv, s: it.sockets, g: it.gems, a: it.aff } : 0;
       }) : undefined;
       return {
-        c: cls, l: lv, tl: Game.state.teamLv, eq,
+        c: cls, l: lv, tl: own, eq,
         atk: Math.max(1, Math.floor(s.atk * 10)),
         hp: Math.max(10, Math.floor(s.hp * 10)),
         def: Math.max(0, Math.floor(s.def * 10)),

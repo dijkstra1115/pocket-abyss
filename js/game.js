@@ -80,6 +80,8 @@ const Game = {
       delete st.heroes[cls].lv;
       delete st.heroes[cls].xp;
     }
+    /* 共鬥等級取歷史最高：確保舊存檔的 maxHeroLv 不低於當前等級 */
+    st.stats.maxHeroLv = Math.max(st.stats.maxHeroLv || 1, st.teamLv);
     /* 貪婪星核已移除：庫存與已鑲嵌者轉為同階生命星核（sage） */
     for (const k of Object.keys(st.cores || {})) {
       if (k.startsWith('greed_')) {

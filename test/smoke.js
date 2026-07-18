@@ -99,12 +99,13 @@ if (it) {
 /* --- 共鬥借等級快照 --- */
 {
   const lv0 = s.teamLv;
+  const own = Math.max(lv0, s.stats.maxHeroLv);
   const base = Raid.mySnapshots();
-  const boosted = Raid.mySnapshots(lv0 + 50);
-  assert(boosted[0].l === lv0 + 50 && boosted[0].tl === lv0, '借等級：l=房內較高、tl=本身');
+  const boosted = Raid.mySnapshots(own + 50);
+  assert(boosted[0].l === own + 50 && boosted[0].tl === own, '借等級：l=房內較高、tl=本身共鬥等級');
   assert(boosted[0].atk > base[0].atk && boosted[0].hp > base[0].hp, '借等級數值有提升');
   assert(s.teamLv === lv0, '借等級不動單機等級');
-  assert(Raid.mySnapshots(lv0 - 1)[0].l === lv0, '較低的借等級不會降級');
+  assert(Raid.mySnapshots(own - 1)[0].l === own, '較低的借等級不會降級');
   const withEq = Raid.mySnapshots(0, true);
   assert(Array.isArray(withEq[0].eq) && withEq[0].eq.length === 4, '房間快照含裝備明細');
   assert(base[0].eq === undefined, '挑戰碼快照不含裝備明細');
@@ -215,6 +216,7 @@ const gain = Game.emberGain();
 assert(gain > 0, `餘燼預覽 ${gain}`);
 assert(Game.ascend(), '昇華成功');
 assert(s.teamLv === 1 && s.floor === 1, '昇華後重置');
+assert(s.stats.maxHeroLv > 1 && Raid.mySnapshots()[0].l === s.stats.maxHeroLv, '昇華後共鬥維持歷史最高等級');
 assert(s.ember >= gain, `餘燼入帳 ${s.ember}`);
 assert(Game.buyTalent('vanguard'), '購買先遣部隊');
 assert(Game.startFloor() === 6, `起始樓層=6 (${Game.startFloor()})`);
