@@ -388,7 +388,7 @@ const Game = {
       m.atkT += m.interval;
       const targets = b.heroes.filter(h => h.hp > 0);
       if (!targets.length) break;
-      const t = targets[Math.floor(Math.random() * targets.length)];
+      const t = this.pickTarget(targets);
       const ti = b.heroes.indexOf(t);
       const s = this.heroStats(t.cls);
       const raw = m.atk * (0.9 + Math.random() * 0.2);
@@ -419,6 +419,13 @@ const Game = {
     } else {
       st.kps = Math.max(0.02, st.kps - st.kps * dt / 600);
     }
+  },
+
+  /* 前排承傷：隊列最後一位站得最靠近怪物，約 70% 機率被攻擊；前排倒下由次前排頂上 */
+  pickTarget(targets) {
+    if (targets.length === 1) return targets[0];
+    if (Math.random() < 0.7) return targets[targets.length - 1];
+    return targets[Math.floor(Math.random() * (targets.length - 1))];
   },
 
   heroHit(hi, bh, s, mob, mult, forceCrit, isSkill) {
@@ -811,6 +818,22 @@ const Game = {
     this.state.gold -= DATA.classes[cls].unlock.cost;
     this.state.heroes[cls] = { equip: {} }; /* 直接享有全隊等級 */
     this.emit({ k: 'unlock', cls });
+    this.dirty();
+    return true;
+  },
+
+  /* 指定前排：移到隊列最後（最靠近怪物）；戰鬥中就地換位、保留血量 */
+  setFront(cls) {
+    const p = this.state.party;
+    const i = p.indexOf(cls);
+    if (i < 0 || i === p.length - 1) return false;
+    p.splice(i, 1);
+    p.push(cls);
+    const bh = this.battle && this.battle.heroes;
+    if (bh) {
+      const bi = bh.findIndex(h => h.cls === cls);
+      if (bi >= 0) bh.push(bh.splice(bi, 1)[0]);
+    }
     this.dirty();
     return true;
   },

@@ -96,6 +96,22 @@ if (it) {
   if (s0 < 3) { assert(Game.addSocket(it), '鑿孔成功'); assert(it.sockets === s0 + 1, '插槽+1'); }
 }
 
+/* --- 前排承傷 --- */
+{
+  if (s.party.length >= 2) {
+    const first = s.party[0];
+    assert(Game.setFront(first), '設定前排');
+    assert(s.party[s.party.length - 1] === first, '前排移位');
+    assert(Game.setFront(first) === false, '已在前排時不重複移位');
+  }
+  const fake = [{ cls: 'a' }, { cls: 'b' }, { cls: 'c' }];
+  let front = 0;
+  for (let i = 0; i < 20000; i++) if (Game.pickTarget(fake) === fake[2]) front++;
+  const pct = front / 200;
+  assert(pct > 66 && pct < 74, `前排承傷約70% (${pct.toFixed(1)}%)`);
+  assert(Game.pickTarget([fake[0]]) === fake[0], '僅剩一人必中');
+}
+
 /* --- 依等級自動分解 --- */
 {
   const mk = (id, lv) => ({ id, base: DATA.bases[0].id, slot: DATA.bases[0].slot, lv, q: 5, aff: [], sockets: 0, gems: [] });

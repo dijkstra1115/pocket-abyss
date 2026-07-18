@@ -777,7 +777,7 @@ const UI = {
   htmlParty() {
     const st = Game.state;
     const need = Game.xpNeed(st.teamLv);
-    let html = `<div class="bag-tools"><span class="hint">上陣 ${st.party.length}/3 · 點裝備欄更換裝備</span>
+    let html = `<div class="bag-tools"><span class="hint">上陣 ${st.party.length}/3 · 點裝備欄換裝 · 前排承受約 70% 攻擊</span>
       <button id="auto-eq" class="accent" style="margin-left:auto">一鍵配裝</button></div>
       <div class="raid-box" style="margin-bottom:6px">隊伍等級 <b>Lv${st.teamLv}</b>
         <span class="hint">全隊共享，換誰上場都同等級</span>
@@ -803,12 +803,14 @@ const UI = {
       }
       const s = Game.heroStats(cls);
       const inParty = st.party.includes(cls);
+      const isFront = inParty && st.party[st.party.length - 1] === cls;
       html += `<div class="hero-card">
         <div class="hero-head">
           <canvas data-sprite="${cls}" width="20" height="24"></canvas>
-          <div><div class="hero-name"><i class="ic" style="background:${c.color}"></i> ${c.name} <span class="hero-sub">Lv${st.teamLv}</span></div>
+          <div><div class="hero-name"><i class="ic" style="background:${c.color}"></i> ${c.name} <span class="hero-sub">Lv${st.teamLv}</span>${isFront ? ' <span class="front-tag">前排</span>' : ''}</div>
           <div class="hero-sub">${c.skill.name}：${c.skill.desc}</div></div>
           <div class="spacer"></div>
+          ${inParty && !isFront && st.party.length > 1 ? `<button data-front="${cls}" title="移到最靠近怪物的位置，承受多數攻擊">站前排</button>` : ''}
           <button data-party="${cls}" class="${inParty ? '' : 'accent'}">${inParty ? '下陣' : '上陣'}</button>
         </div>
         <div class="stat-grid">
@@ -846,6 +848,10 @@ const UI = {
     });
     p.querySelectorAll('[data-party]').forEach(b => b.onclick = () => {
       Game.toggleParty(b.dataset.party);
+      this.renderPanel();
+    });
+    p.querySelectorAll('[data-front]').forEach(b => b.onclick = () => {
+      if (Game.setFront(b.dataset.front)) this.toast(`${DATA.classes[b.dataset.front].name}移到前排`);
       this.renderPanel();
     });
     p.querySelectorAll('[data-eq]').forEach(el => el.onclick = () => {
@@ -1571,9 +1577,9 @@ const UI = {
       Game.save();
       this.toast(`⚡ 與 ${who} 等級同步：隊伍升到 Lv${best}！`);
     }
-    /* 我的等級/裝備有變 → 更新房內快照，讓隊友那邊也能同步 */
+    /* 我的等級/角色/裝備有變 → 更新房內快照，讓隊友那邊也能同步 */
     const me = room.players.find(p => p.n === myName);
-    if (me && me.h && me.h[0] && me.h[0].l !== st.teamLv) {
+    if (me && JSON.stringify(me.h) !== JSON.stringify(Raid.mySnapshots())) {
       Raid.joinRoom(room.code, myName)
         .then(r => { this.roomData = r; })
         .catch(() => { /* 下次輪詢再試 */ });
