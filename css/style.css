@@ -193,6 +193,7 @@ button.sel { border-color: var(--border-hi); background: #2e2450; color: #fff; }
   gap: 1px 8px; font-size: 12px; color: var(--dim); margin-top: 4px;
 }
 .stat-grid b { color: var(--text); font-weight: normal; }
+.stat-grid .z, .stat-grid .z b { color: #4a4560; }
 
 /* ---------- 背包 ---------- */
 .bag-tools { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; align-items: center; }

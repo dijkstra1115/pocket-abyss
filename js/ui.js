@@ -867,8 +867,12 @@ const UI = {
           <span>生命 <b>${Game.fmt(s.hp)}</b></span>
           <span>防禦 <b>${Game.fmt(s.def)}</b></span>
           <span>攻速 <b>${s.aspd.toFixed(2)}</b></span>
-          <span>暴擊 <b>${s.crit.toFixed(0)}%</b></span>
-          <span>暴傷 <b>${s.critD.toFixed(0)}%</b></span>
+          <span>暴擊 <b>${+s.crit.toFixed(1)}%</b></span>
+          <span>暴傷 <b>${+s.critD.toFixed(1)}%</b></span>
+          <span${s.leech ? '' : ' class="z"'}>吸血 <b>${+s.leech.toFixed(1)}%</b></span>
+          <span${s.haste ? '' : ' class="z"'} title="技能冷卻 ${(c.skill.cd / (1 + s.haste / 100)).toFixed(1)} 秒">急速 <b>${+s.haste.toFixed(1)}%</b></span>
+          <span${s.healP ? '' : ' class="z"'}>治強 <b>${+s.healP.toFixed(1)}%</b></span>
+          <span${s.thorn ? '' : ' class="z"'}>反傷 <b>${+s.thorn.toFixed(1)}%</b></span>
         </div>
         <div class="equip-row">${DATA.slotOrder.map(slot => {
           const it = h.equip[slot];

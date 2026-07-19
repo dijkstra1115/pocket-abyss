@@ -1,2 +1,2 @@
 'use strict';
-const GAME_VERSION = 24;
+const GAME_VERSION = 25;
