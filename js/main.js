@@ -126,7 +126,7 @@
   requestAnimationFrame(frame);
 
   /* 低頻 UI 刷新 */
-  setInterval(() => UI.renderTop(), 300);
+  setInterval(() => { UI.renderTop(); UI.updateDmgPanel(); }, 300);
   setInterval(() => UI.refresh(), 2000);
 
   /* 存檔保險 */

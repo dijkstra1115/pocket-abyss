@@ -39,7 +39,7 @@ const Game = {
         playtime: 0,
       },
       kps: 0.2,
-      settings: { autoAdvance: true, autoSalv: 0, autoSalvLv: 0, mini: false, uiScale: 1, playerName: '勇者', roomCode: '' },
+      settings: { autoAdvance: true, autoSalv: 0, autoSalvLv: 0, mini: false, uiScale: 1, playerName: '勇者', roomCode: '', dmgMeter: true },
       lastSeen: Date.now(),
     };
   },

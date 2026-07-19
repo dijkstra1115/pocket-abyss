@@ -109,6 +109,10 @@ const UI = {
       this.renderTop();
     };
     document.getElementById('mini-btn').onclick = () => this.toggleMini();
+    document.getElementById('dmg-toggle').onclick = () => {
+      Game.state.settings.dmgMeter = !Game.state.settings.dmgMeter;
+      this.updateDmgPanel();
+    };
     document.getElementById('modal-root').onclick = (e) => {
       if (e.target.id === 'modal-root') this.closeModal();
     };
@@ -164,6 +168,8 @@ const UI = {
           }
           let numColor = '#ff7a7a';
           if (e.side === 'mob') {
+            /* 傷害面板統計（15 秒滾動窗） */
+            if (e.by) this.dmgLog.push({ t: performance.now() / 1000, c: e.by, a: e.amt });
             const cc = DATA.classes[e.by];
             numColor = cc ? cc.color : '#ffffff';
             const c = this.mobCenter(e.i);
@@ -732,6 +738,36 @@ const UI = {
       Sprites.text(ctx, sim.win ? '!!' : '--', 64, 16, sim.win ? '#ffd94d' : '#8a80a0', 2);
     }
     ctx.restore();
+  },
+
+  /* ============ 即時傷害面板（單機戰鬥畫布右上） ============ */
+  dmgLog: [],
+  DMG_WIN: 15, /* 統計窗秒數 */
+
+  updateDmgPanel() {
+    const el = document.getElementById('dmg-panel');
+    const tg = document.getElementById('dmg-toggle');
+    if (!el || !tg) return;
+    const st = Game.state;
+    const on = st.settings.dmgMeter && !this.raid;
+    el.classList.toggle('hidden', !on);
+    tg.style.opacity = on ? 0.65 : 0.3;
+    if (!on) return;
+    const now = performance.now() / 1000;
+    this.dmgLog = this.dmgLog.filter(d => now - d.t <= this.DMG_WIN);
+    const sums = {};
+    for (const d of this.dmgLog) sums[d.c] = (sums[d.c] || 0) + d.a;
+    const total = Object.values(sums).reduce((a, b) => a + b, 0);
+    el.innerHTML = st.party.map(c => {
+      const v = sums[c] || 0;
+      const pct = total > 0 ? v / total * 100 : 0;
+      const cc = DATA.classes[c];
+      return `<div class="dm-row">
+        <span class="dm-name" style="color:${cc.color}">${cc.name}</span>
+        <i class="dm-bar"><b style="width:${pct.toFixed(0)}%;background:${cc.color}"></b></i>
+        <span class="dm-val">${Game.fmt(v / this.DMG_WIN)}/s</span></div>`;
+    }).join('') + `<div class="dm-row"><span class="dm-name" style="color:#8a80a0">合計</span>
+      <i class="dm-bar"></i><span class="dm-val">${Game.fmt(total / this.DMG_WIN)}/s</span></div>`;
   },
 
   /* ============ 頂欄 / 狀態列 ============ */

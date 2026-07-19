@@ -83,15 +83,37 @@ button.accent { border-color: #3d5c8f; }
 button.sel { border-color: var(--border-hi); background: #2e2450; color: #fff; }
 
 /* ---------- 戰鬥畫布 ---------- */
-#scene {
+#scene-wrap {
+  position: relative;
   width: 405px;
   max-width: 100%;
+  flex-shrink: 0;
+}
+#scene {
+  display: block;
+  width: 100%;
   aspect-ratio: 135 / 60;
   height: auto;
   image-rendering: pixelated;
   border: 2px solid var(--border);
   background: #000;
-  flex-shrink: 0;
+}
+/* 即時傷害面板（覆蓋在戰鬥畫布右上） */
+#dmg-panel {
+  position: absolute; top: 5px; right: 5px; width: 132px;
+  padding: 3px 5px; font-size: 10px; line-height: 1.6;
+  background: rgba(13, 11, 20, 0.75); border: 1px solid #3a3350;
+  pointer-events: none;
+}
+#dmg-panel.hidden { display: none; }
+.dm-row { display: flex; align-items: center; gap: 3px; }
+.dm-name { flex: 0 0 26px; }
+.dm-bar { flex: 1; height: 3px; background: #26202f; }
+.dm-bar b { display: block; height: 3px; }
+.dm-val { flex: 0 0 44px; text-align: right; }
+#dmg-toggle {
+  position: absolute; top: 4px; left: 4px;
+  font-size: 10px; padding: 0 4px; opacity: 0.65;
 }
 
 /* ---------- 狀態列 ---------- */
