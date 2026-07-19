@@ -921,8 +921,9 @@ const UI = {
       <span class="ilv">${bits.join(' · ')}</span></div>`;
   },
 
-  /* 選擇清單用：一列顯示主屬性，可與目前裝備比較（加綠減紅） */
-  itemRowHTML(it, attr, cur, tag) {
+  /* 選擇清單用：一列顯示主屬性，可與目前裝備比較（加綠減紅）。
+     full＝換裝模式：全詞綴逐條比較、標示會失去的詞綴、星核與空槽 */
+  itemRowHTML(it, attr, cur, tag, full) {
     const q = DATA.qualities[it.q];
     const bs = Game.itemBaseStats(it);
     const cs = cur ? Game.itemBaseStats(cur) : null;
@@ -937,8 +938,37 @@ const UI = {
       }
       return `<span>${labels[k]} ${Game.fmt(bs[k])}${dTxt}</span>`;
     }).filter(Boolean).join('');
-    const aff = it.aff.slice(0, 3).map(([k, v]) => `${DATA.affixes[k].name}+${v}%`).join(' ')
-      + (it.aff.length > 3 ? ' …' : '');
+    let aff;
+    if (full) {
+      const curMap = cur ? Object.fromEntries(cur.aff) : null;
+      const parts = it.aff.map(([k, v]) => {
+        let d = '';
+        if (curMap) {
+          const cv = curMap[k];
+          if (cv === undefined) d = ' <i class="up">新</i>';
+          else {
+            const df = Math.round((v - cv) * 10) / 10;
+            d = df > 0 ? ` <i class="up">+${df}</i>` : df < 0 ? ` <i class="down">${df}</i>` : '';
+          }
+        }
+        return `<span class="af">${DATA.affixes[k].name}+${v}${DATA.affixes[k].unit}${d}</span>`;
+      });
+      if (curMap) {
+        for (const [k, v] of cur.aff) {
+          if (!it.aff.some(a => a[0] === k))
+            parts.push(`<span class="af lost">失去 ${DATA.affixes[k].name}+${v}${DATA.affixes[k].unit}</span>`);
+        }
+      }
+      for (const g of it.gems) {
+        const ct = DATA.coreTypes[g.split('_')[0]];
+        if (ct) parts.push(`<span class="af" style="color:${ct.color}">◆${DATA.coreTiers[+g.split('_')[1]].name}·${ct.name}</span>`);
+      }
+      if (it.sockets > it.gems.length) parts.push(`<span class="af hint">◇空槽×${it.sockets - it.gems.length}</span>`);
+      aff = parts.join('');
+    } else {
+      aff = it.aff.slice(0, 3).map(([k, v]) => `${DATA.affixes[k].name}+${v}%`).join(' ')
+        + (it.aff.length > 3 ? ' …' : '');
+    }
     const bits = [`Lv${it.lv}`];
     if (it.sockets) bits.push(`孔${it.gems.length}/${it.sockets}`);
     if (tag) bits.unshift(tag);
@@ -946,7 +976,7 @@ const UI = {
       <div class="ir-top"><span class="inm" style="color:${q.color}">${q.name}${Game.baseOf(it).name}</span>
         <span class="ilv">${bits.join(' · ')}</span></div>
       <div class="ir-stat">${stat}</div>
-      ${aff ? `<div class="ir-aff">${aff}</div>` : ''}</div>`;
+      ${aff ? `<div class="ir-aff${full ? ' full' : ''}">${aff}</div>` : ''}</div>`;
   },
 
   itemDetailHTML(it) {
@@ -1045,10 +1075,10 @@ const UI = {
     const items = Game.state.inventory.filter(i => i.slot === slot)
       .sort((a, b) => Game.itemScore(b) - Game.itemScore(a));
     const curHtml = cur
-      ? this.itemRowHTML(cur, 'data-current="1"', null, '目前裝備')
+      ? this.itemRowHTML(cur, 'data-current="1"', null, '目前裝備', true)
       : '<div class="hint" style="margin-bottom:4px">目前空手 —— 隨便一件都是提升</div>';
     const list = items.length
-      ? items.map(i => this.itemRowHTML(i, `data-pick="${i.id}"`, cur)).join('')
+      ? items.map(i => this.itemRowHTML(i, `data-pick="${i.id}"`, cur, null, true)).join('')
       : '<div class="hint">背包裡沒有這個部位的裝備</div>';
     const curBtns = cur
       ? `<div class="btn-row" style="margin:0 0 8px">
@@ -1057,7 +1087,7 @@ const UI = {
       : '';
     const m = this.modal(`<h3>${DATA.classes[cls].name} · 選擇${DATA.slots[slot]}</h3>
       ${curHtml}${curBtns}
-      <div class="hint" style="margin-bottom:4px">點一件換上 · 括號內是與目前的差距</div>
+      <div class="hint" style="margin-bottom:4px">點一件換上 · 括號是與目前的差距 · 「新」=現有沒有的詞綴</div>
       <div class="pick-list">${list}</div>
       <div class="close-row"><button data-close>關閉</button></div>`);
     m.querySelectorAll('[data-pick]').forEach(el => el.onclick = () => {

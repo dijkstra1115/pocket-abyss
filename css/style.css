@@ -244,6 +244,9 @@ select, input {
 .ir-top .ilv { color: var(--dim); white-space: nowrap; }
 .ir-stat { display: flex; gap: 10px; margin-top: 1px; }
 .ir-aff { color: #9ecbff; font-size: 10px; }
+.ir-aff.full { display: flex; flex-wrap: wrap; gap: 0 8px; margin-top: 1px; }
+.ir-aff .af { white-space: nowrap; }
+.ir-aff .lost { color: var(--bad); opacity: 0.75; }
 i.up, i.down, i.flat { font-style: normal; }
 .up { color: var(--good); }
 .down { color: var(--bad); }
