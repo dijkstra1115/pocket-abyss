@@ -210,16 +210,38 @@ if (it && it.sockets > 0) {
   assert(typeof r.c === 'number', '批次分解回報退核數');
 }
 
+/* --- 暴擊溢出轉暴傷 + 金幣煉塵 --- */
+{
+  const tr = { id: 92001, base: 't01', slot: 'trinket', lv: 1, q: 5, aff: [['crit', 200]], sockets: 0, gems: [] };
+  s.inventory.push(tr);
+  Game.equip(92001, 'blade');
+  const hs = Game.heroStats('blade');
+  assert(hs.crit === 100 && hs.critD > 300, `暴擊封頂100、溢出轉暴傷 (critD=${hs.critD.toFixed(0)})`);
+  Game.unequip('blade', 'trinket');
+  s.inventory = s.inventory.filter(i => i.id !== 92001);
+  const price = Game.dustPrice();
+  s.gold += price * 100;
+  const d0 = s.dust, g0 = s.gold;
+  const got = Game.goldToDust(100);
+  assert(got === 100 && s.dust === d0 + 100 && s.gold === g0 - price * 100, `金幣煉塵（${price}金/塵）`);
+  assert(Game.goldToDust(1e15) >= 0 && s.gold < price, '全部煉成不超額');
+}
+
 /* --- 昇華 --- */
 if (s.runMaxFloor < 50) { s.runMaxFloor = 60; s.maxFloorEver = Math.max(s.maxFloorEver, 60); s.stats.maxFloorEver = s.maxFloorEver; }
 const gain = Game.emberGain();
 assert(gain > 0, `餘燼預覽 ${gain}`);
 assert(Game.ascend(), '昇華成功');
-assert(s.teamLv === 1 && s.floor === 1, '昇華後重置');
+assert(s.teamLv === 1 && s.floor === Game.startFloor(), `昇華後重置（起始 ${s.floor}）`);
 assert(s.stats.maxHeroLv > 1 && Raid.mySnapshots()[0].l === s.stats.maxHeroLv, '昇華後共鬥維持歷史最高等級');
 assert(s.ember >= gain, `餘燼入帳 ${s.ember}`);
 assert(Game.buyTalent('vanguard'), '購買先遣部隊');
-assert(Game.startFloor() === 6, `起始樓層=6 (${Game.startFloor()})`);
+{
+  const mf = s.maxFloorEver;
+  const expStart = Math.max(1, Math.min(Math.max(1, mf - 20), Math.max(6, Math.floor(mf * 0.15))));
+  assert(Game.startFloor() === expStart, `起始樓層=${expStart} (${Game.startFloor()})`);
+  assert(Game.emberNeed() === Math.max(40, expStart + 20), `昇華門檻=${Game.emberNeed()}`);
+}
 Game.ascend; /* no-op */
 s.floor = Game.startFloor();
 

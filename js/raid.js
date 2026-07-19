@@ -5,7 +5,7 @@
 
 const RAID_TPS = 10;          /* 每秒邏輯 tick 數（固定步長） */
 const RAID_MAX_TICKS = 600;   /* 60 秒戰鬥上限 */
-const RAID_VERSION = 2; /* v2：前排承傷（各隊末位 70% 機率被攻擊） */
+const RAID_VERSION = 3; /* v2：前排承傷；v3：護盾吃治療強度、攻速上限 10/s 與單機對齊 */
 
 const Raid = {
   /* ---------- 種子亂數（mulberry32，跨引擎一致） ---------- */
@@ -39,7 +39,7 @@ const Raid = {
         atk: Math.max(1, Math.floor(s.atk * 10)),
         hp: Math.max(10, Math.floor(s.hp * 10)),
         def: Math.max(0, Math.floor(s.def * 10)),
-        itv: Math.max(2, Math.round(RAID_TPS / s.aspd)),                            /* 普攻間隔 ticks */
+        itv: Math.max(1, Math.round(RAID_TPS / s.aspd)),                            /* 普攻間隔 ticks */
         cd: Math.max(RAID_TPS, Math.round(c.skill.cd * RAID_TPS / (1 + s.haste / 100))), /* 技能 CD ticks */
         crit: Math.floor(s.crit * 10),
         critD: Math.floor(s.critD * 10),
@@ -201,7 +201,8 @@ const Raid = {
         st.events.push({ k: 'heal', t: st.heroes.indexOf(a), amt });
       }
     } else if (sk.type === 'shield') {
-      const val = Math.floor(h.s.hp * m100 / 100);
+      /* v3：與單機一致，護盾量吃治療強度 */
+      const val = Math.floor(Math.floor(h.s.hp * m100 / 100) * (1000 + h.s.healP) / 1000);
       for (const a of st.heroes) {
         if (a.hp > 0) a.shield = Math.max(a.shield, val);
       }
@@ -356,7 +357,8 @@ const Raid = {
         st.events.push({ k: 'heal', t: st.heroes.indexOf(a), amt });
       }
     } else if (sk.type === 'shield') {
-      const val = Math.floor(h.s.hp * m100 / 100);
+      /* v3：與單機一致，護盾量吃治療強度 */
+      const val = Math.floor(Math.floor(h.s.hp * m100 / 100) * (1000 + h.s.healP) / 1000);
       for (const a of st.heroes) {
         if (a.hp > 0) a.shield = Math.max(a.shield, val);
       }
@@ -468,7 +470,7 @@ const Raid = {
 
   createRoom(raidLv, name) {
     return this.api('/room', {
-      v: 2, /* 房間格式版本＝模擬規則版本：v2 起含前排承傷 */
+      v: 3, /* 房間格式版本＝模擬規則版本（v3：護盾×治強、攻速上限） */
       seed: (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 1,
       boss: this.bossConfig(raidLv),
       player: { n: name, h: this.mySnapshots(0, true) },
@@ -478,8 +480,9 @@ const Raid = {
   joinRoom(code, name, lvBoost) {
     return this.api('/room/' + encodeURIComponent(code) + '/join', { n: name, h: this.mySnapshots(lvBoost, true) });
   },
-  postDamage(code, name, dmg, seed) {
-    return this.api('/room/' + encodeURIComponent(code) + '/damage', { n: name, dmg, seed });
+  postDamage(code, name, dmg, seed, teams) {
+    /* teams：本場實際使用的快照（去掉 eq 檢視欄位），讓「重播」真正逐幀重現當時 */
+    return this.api('/room/' + encodeURIComponent(code) + '/damage', { n: name, dmg, seed, teams });
   },
   postExp(code, name, from, to, seed) {
     return this.api('/room/' + encodeURIComponent(code) + '/exp', { n: name, from, to, seed });

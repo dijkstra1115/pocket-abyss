@@ -165,7 +165,17 @@ const Game = {
   wavesPerFloor(floor) {
     return this.isBossFloor(floor) ? 1 : 4 + Math.min(4, Math.floor(floor / 50));
   },
-  startFloor() { return 1 + this.talentVal('vanguard'); },
+  /* 昇華起始樓層：前期走固定層數（+5層/階），後期走歷史最深百分比
+     （10% +5%/階，滿階 50%），取高者；至少保留 20 層可推進 */
+  startFloor() {
+    const mf = this.state.maxFloorEver || 1;
+    const v = this.talentVal('vanguard');
+    const flat = 1 + v;
+    const byPct = Math.floor(mf * (10 + v) / 100);
+    return Math.max(1, Math.min(Math.max(1, mf - 20), Math.max(flat, byPct)));
+  },
+  /* 昇華門檻：本輪至少要推進到起始樓層 +20（前期維持 40 層門檻） */
+  emberNeed() { return Math.max(40, this.startFloor() + 20); },
 
   talentRank(id) { return this.state.talents[id] || 0; },
   talentVal(id) {
@@ -231,7 +241,7 @@ const Game = {
       atk: (c.base.atk * lvM + fAtk) * (1 + ((bon.atkP || 0) + allP) / 100),
       hp: Math.max(1, (c.base.hp * lvM + fHp) * (1 + ((bon.hpP || 0) + allP) / 100)),
       def: (c.base.def * lvM + fDef) * (1 + ((bon.defP || 0) + allP) / 100),
-      aspd: c.base.aspd * (1 + (bon.aspd || 0) / 100),
+      aspd: Math.min(10, c.base.aspd * (1 + (bon.aspd || 0) / 100)), /* 上限 10/s，與共鬥一致 */
       crit: c.base.crit + (bon.crit || 0),
       critD: 150 + (bon.critD || 0),
       leech: bon.leech || 0,
@@ -239,6 +249,11 @@ const Game = {
       healP: bon.healP || 0,
       thorn: bon.thorn || 0,
     };
+    /* 暴擊率溢出不浪費：超過 100% 的部分 1:2 轉為暴擊傷害 */
+    if (st.crit > 100) {
+      st.critD += (st.crit - 100) * 2;
+      st.crit = 100;
+    }
     return st;
   },
 
@@ -776,6 +791,21 @@ const Game = {
     return true;
   },
 
+  /* 金幣煉塵：後期金幣的出口。匯率錨定歷史最深樓層的單殺金幣，
+     永遠比打怪分解貴一截 —— 是洩壓閥，不是最優解 */
+  dustPrice() { return Math.ceil(this.killGold(this.state.maxFloorEver)); },
+
+  goldToDust(n) {
+    const st = this.state;
+    const price = this.dustPrice();
+    const buy = Math.min(n, Math.floor(st.gold / price));
+    if (buy <= 0) return 0;
+    st.gold -= buy * price;
+    st.dust += buy;
+    this.dirty();
+    return buy;
+  },
+
   socketCost(item) {
     return Math.ceil((40 + item.lv * 2) * Math.pow(3, item.sockets) * this.forgeDiscount());
   },
@@ -891,7 +921,7 @@ const Game = {
   /* ============ 昇華 ============ */
   emberGain() {
     const m = this.state.runMaxFloor;
-    if (m < 40) return 0;
+    if (m < this.emberNeed()) return 0;
     const cycle = this.cycleOf(m);
     return Math.floor(Math.pow((m - 30) / 10, 1.6) * 2 * (1 + cycle * 0.5));
   },

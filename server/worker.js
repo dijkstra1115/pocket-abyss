@@ -32,8 +32,8 @@ export default {
       /* POST /room — 開房 */
       if (req.method === 'POST' && parts.length === 1) {
         const b = await req.json();
-        /* v1=舊模擬規則、v2=前排承傷：同時接受，讓未更新的客戶端仍可互開 v1 房 */
-        if (!b || (b.v !== 1 && b.v !== 2) || !b.boss || !b.player ||
+        /* v1/v2/v3 = 各代模擬規則：同時接受，未更新的客戶端之間仍可互開舊版房 */
+        if (!b || (b.v !== 1 && b.v !== 2 && b.v !== 3) || !b.boss || !b.player ||
             !Array.isArray(b.player.h) || !b.player.h.length || b.player.h.length > 3)
           return json({ err: 'bad request' }, 400);
         if (JSON.stringify(b).length > 12000) return json({ err: 'too large' }, 400); /* 快照含裝備明細後放寬 */
@@ -92,7 +92,10 @@ export default {
           const dmg = Math.max(0, Math.min(Math.floor(+b.dmg || 0), room.pool));
           p.dmg += dmg;
           room.remaining = Math.max(0, room.remaining - dmg);
-          room.runs.unshift({ n: name, seed: (+b.seed >>> 0) || 0, dmg, ts: Date.now() });
+          /* 該場快照（供逐幀重播）；過大就不存，重播退回用當前陣容 */
+          const teams = Array.isArray(b.teams) && JSON.stringify(b.teams).length <= 8000
+            ? b.teams : undefined;
+          room.runs.unshift({ n: name, seed: (+b.seed >>> 0) || 0, dmg, ts: Date.now(), teams });
           room.runs = room.runs.slice(0, 10);
           await env.ROOMS.put('room:' + code, JSON.stringify(room), { expirationTtl: TTL });
         }

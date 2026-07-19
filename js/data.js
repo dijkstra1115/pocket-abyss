@@ -271,7 +271,7 @@ DATA.talents = [
   { id: 'fortune',   name: '尋寶直覺', stat: 'dropP',     per: 5,  unit: '%',  max: 20, cost: 2, desc: '掉落率' },
   { id: 'resonance', name: '星核共鳴', stat: 'coreP',     per: 8,  unit: '%',  max: 15, cost: 2, desc: '星核掉率' },
   { id: 'hourglass', name: '時間沙漏', stat: 'offlineH',  per: 2,  unit: '小時', max: 6, cost: 4, desc: '離線收益上限' },
-  { id: 'vanguard',  name: '先遣部隊', stat: 'startF',    per: 5,  unit: '層', max: 8,  cost: 5, desc: '昇華起始樓層' },
+  { id: 'vanguard',  name: '先遣部隊', stat: 'startF',    per: 5,  unit: '', max: 8,  cost: 5, desc: '昇華起始：+5層或歷史最深+5%（取高）' },
   { id: 'smith',     name: '鍛造大師', stat: 'forgeD',    per: 5,  unit: '%',  max: 8,  cost: 3, desc: '鍛造費用減免' },
 ];
 

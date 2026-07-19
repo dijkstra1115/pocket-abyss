@@ -34,7 +34,7 @@
       Game.state.settings.playerName = '小明';
       Game.state.settings.roomCode = 'DEMO42';
       UI.roomData = {
-        v: 1, code: 'DEMO42', seed: 1,
+        v: 3, code: 'DEMO42', seed: 1,
         boss: { z: 1, lv: 30, hp: 5000000, atk: 800, itv: 16 },
         players: [
           { n: '小明', h: Raid.mySnapshots(0, true), dmg: 1234560 },

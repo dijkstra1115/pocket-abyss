@@ -480,12 +480,17 @@ const UI = {
       const from = R.full.from;
       const to = from + R.st.cleared;
       if (to > from) {
-        /* 遠征獎勵（只發自己這輪實際推進的樓層） */
+        /* 遠征獎勵：只發自己這輪實際推進的樓層。
+           樓層以自己單機歷史最深封頂 —— 防止低等玩家蹭高等房的深層獎勵
+           一輪跳幾十級（借等級只借戰力、獎勵不借）；並與單機一致吃經濟加成 */
+        const eco = Game.economy();
+        const cap = Game.state.maxFloorEver;
         let gold = 0, dust = 0, xp = 0;
         for (let f = from; f < to; f++) {
-          gold += Math.ceil(Game.killGold(f)) * 12;
-          dust += 5 + f;
-          xp += Game.killXp(f) * 8;
+          const ef = Math.min(f, cap);
+          gold += Math.ceil(Game.killGold(ef) * 12 * (1 + eco.goldP / 100));
+          dust += 5 + ef;
+          xp += Game.killXp(ef) * 8 * (1 + eco.xpP / 100);
         }
         Game.state.gold += gold;
         Game.state.stats.goldEarned += gold;
@@ -505,7 +510,12 @@ const UI = {
     }
     let myDmg = 0;
     for (const h of R.st.heroes) if (h.team === R.myTeam) myDmg += h.dmg;
-    Raid.postDamage(R.cloud.code, name, myDmg, R.cloud.seed)
+    /* 附上本場快照（去掉 eq 純檢視欄位）供之後逐幀重播 */
+    const teams = R.full.teams.map(t => ({
+      n: t.n,
+      h: t.h.map(h => { const c = Object.assign({}, h); delete c.eq; return c; }),
+    }));
+    Raid.postDamage(R.cloud.code, name, myDmg, R.cloud.seed, teams)
       .then(room => {
         this.roomData = room;
         this.syncRoomLevel(room);
@@ -1085,12 +1095,21 @@ const UI = {
   htmlForge() {
     const it = this.forgeItem();
     const st = Game.state;
+    const price = Game.dustPrice();
+    const refine = `<div class="section-title" style="margin-top:8px">星塵煉成</div>
+      <div class="forge-op"><div>金幣 → 星塵
+          <div class="cost">匯率 ${Game.fmt(price)} 金幣＝1 星塵（隨歷史最深樓層浮動）</div></div>
+        <span>
+          <button data-refine="100" ${st.gold >= price * 100 ? '' : 'disabled'}>×100</button>
+          <button data-refine="1000" ${st.gold >= price * 1000 ? '' : 'disabled'}>×1K</button>
+          <button data-refine="all" ${st.gold >= price ? '' : 'disabled'}>全部</button>
+        </span></div>`;
     if (!it) {
       return `<div class="forge-target" id="forge-pick">＋ 點此選擇要鍛造的裝備<br>
         <span class="hint">（背包或身上的裝備都可以）</span></div>
         <div class="hint">升品：品質+1階，屬性重算，可能長出新詞綴<br>
         重鑄：重骰全部詞綴<br>鑿孔：追加星核插槽（最多3孔）<br>
-        分解裝備可獲得星塵${Game.talentVal('smith') ? `<br>鍛造大師減免 ${Game.talentVal('smith')}%` : ''}</div>`;
+        分解裝備可獲得星塵${Game.talentVal('smith') ? `<br>鍛造大師減免 ${Game.talentVal('smith')}%` : ''}</div>` + refine;
     }
     const up = Game.upgradeCost(it);
     const maxQ = it.q >= 11;
@@ -1123,11 +1142,17 @@ const UI = {
         return `<div class="forge-op"><div>取回 <span style="color:${DATA.coreTypes[type].color}">${DATA.coreTiers[+tier].name}·${DATA.coreTypes[type].name}</span>
           <div class="cost">${Game.fmt(Game.unsocketCost(+tier))} 星塵</div></div>
           <button data-unsocket="${gi}" ${st.dust >= Game.unsocketCost(+tier) ? '' : 'disabled'}>取回</button></div>`;
-      }).join('')}`;
+      }).join('')}` + refine;
   },
 
   bindForge(p) {
     p.querySelector('#forge-pick').onclick = () => this.showForgePicker();
+    p.querySelectorAll('[data-refine]').forEach(b => b.onclick = () => {
+      const n = b.dataset.refine === 'all' ? Infinity : +b.dataset.refine;
+      const got = Game.goldToDust(n);
+      this.toast(got ? `煉成 ${Game.fmt(got)} 星塵` : '金幣不足');
+      this.renderPanel(); this.renderTop();
+    });
     const it = this.forgeItem();
     if (!it) return;
     const rebind = () => { this.renderPanel(); this.renderTop(); };
@@ -1249,7 +1274,8 @@ const UI = {
     let html = `<div class="ascend-box">
       本輪最深：第 ${st.runMaxFloor} 層<br>
       昇華可得 <span class="big">${gain}</span> 餘燼
-      ${gain <= 0 ? `<div class="hint">（抵達第 40 層開啟昇華）</div>` : ''}
+      ${gain <= 0 ? `<div class="hint">（本輪抵達第 ${Game.emberNeed()} 層開啟昇華）</div>` : ''}
+      ${gain > 0 ? `<div class="hint">下次昇華起始樓層：第 ${Game.startFloor()} 層</div>` : ''}
       <div style="margin-top:6px"><button id="asc-btn" class="warn" ${gain > 0 ? '' : 'disabled'}>昇 華</button></div>
       <div class="hint" style="margin-top:4px">重置：樓層 / 英雄等級 / 金幣<br>保留：裝備 / 星核 / 星塵 / 成就 / 天賦 / 共鬥等級（歷史最高）</div>
     </div>`;
@@ -1511,6 +1537,14 @@ const UI = {
       if (code.length !== 6) { this.toast('房碼是 6 碼英數字'); return; }
       jn.disabled = true;
       try {
+        /* 伺服器以名字識別玩家：同名加入會被當成「更新快照」而非第二人，
+           血池不會×1.7 且雙方快照互相覆蓋 —— 先擋下撞名 */
+        const peek = await Raid.getRoom(code);
+        if (peek.players.some(pl => pl.n === myName()) && Game.state.settings.roomCode !== peek.code) {
+          this.toast(`房內已有叫「${myName()}」的玩家，請先改個名字再加入`);
+          jn.disabled = false;
+          return;
+        }
         const room = await Raid.joinRoom(code, myName());
         Game.state.settings.roomCode = room.code;
         this.roomData = room;
@@ -1561,7 +1595,11 @@ const UI = {
       const run = rm && (rm.runs || [])[+b.dataset.replay];
       if (!run) return;
       const myIdx = rm.players.findIndex(pl => pl.n === myName());
-      this.startRaid(Raid.roomInput(rm, run.seed), Math.max(0, myIdx), null, null);
+      /* 優先用該場記錄的快照重播（真逐幀重現）；舊紀錄退回用當前陣容 */
+      const input = run.teams
+        ? { v: rm.v, seed: run.seed, boss: rm.boss, teams: run.teams }
+        : Raid.roomInput(rm, run.seed);
+      this.startRaid(input, Math.max(0, myIdx), null, null);
     });
 
     /* ---- 碼交換模式 ---- */
@@ -1673,7 +1711,7 @@ const UI = {
     const code = Game.state.settings.roomCode;
     if (!code) return;
     Raid.getRoom(code).then(room => {
-      if (room.v !== 2) {
+      if (room.v !== 3) {
         this.toast('房間版本不合，請兩邊都更新到最新版後重開房');
         return;
       }
