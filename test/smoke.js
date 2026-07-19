@@ -210,6 +210,23 @@ if (it && it.sockets > 0) {
   assert(typeof r.c === 'number', '批次分解回報退核數');
 }
 
+/* --- 鎖詞綴重鑄 --- */
+{
+  const itL = { id: 93001, base: DATA.bases[0].id, slot: DATA.bases[0].slot, lv: 30, q: 7,
+    aff: [['atkP', 20], ['crit', 9], ['aspd', 5], ['leech', 2]], sockets: 0, gems: [] };
+  s.inventory.push(itL);
+  s.dust += 1e7; s.gold += 1e12;
+  const g0 = s.gold, expLock = Game.lockCost(2);
+  assert(Game.reroll(itL, [0, 2]), '鎖2條重鑄成功');
+  assert(itL.aff[0][0] === 'atkP' && itL.aff[0][1] === 20, '鎖定詞綴保留原值');
+  assert(itL.aff[2][0] === 'aspd' && itL.aff[2][1] === 5, '鎖定詞綴保留原位');
+  assert(g0 - s.gold === expLock && expLock > 0, `鎖詞綴收費 ${expLock} 金幣`);
+  assert(!itL.aff.some((a, i) => i !== 0 && a[0] === 'atkP'), '重骰不與鎖定重複');
+  assert(Game.lockCost(3) === Math.ceil(Game.lockCost(1) * 16 / 1) || Game.lockCost(3) > Game.lockCost(2) * 3, '鎖越多指數走升');
+  assert(Game.reroll(itL, [0, 1, 2, 3]) === false, '全鎖不可重鑄');
+  s.inventory = s.inventory.filter(i => i.id !== 93001);
+}
+
 /* --- 暴擊溢出轉暴傷 + 金幣煉塵 --- */
 {
   const tr = { id: 92001, base: 't01', slot: 'trinket', lv: 1, q: 5, aff: [['crit', 200]], sockets: 0, gems: [] };

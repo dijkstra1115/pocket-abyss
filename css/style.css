@@ -177,6 +177,8 @@ button.sel { border-color: var(--border-hi); background: #2e2450; color: #fff; }
 .salv-lv { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: var(--dim); }
 .salv-lv input { width: 44px; }
 .front-tag { font-size: 10px; color: var(--gold); border: 1px solid currentColor; padding: 0 3px; vertical-align: 1px; }
+.aff-locks { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 4px; }
+.aff-locks button { font-size: 11px; padding: 2px 5px; }
 .bag-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));

@@ -997,6 +997,7 @@ const UI = {
     };
     m.querySelector('[data-forge]').onclick = () => {
       this.forgeSel = ref.loc === 'inv' ? { loc: 'inv', id: it.id } : ref;
+      this.forgeLocks = new Set();
       this.closeModal();
       document.querySelector('#tabs button[data-tab=forge]').click();
     };
@@ -1131,9 +1132,19 @@ const UI = {
           ${upPrev}
           <div class="cost">${Game.fmt(up.dust)} 星塵 + ${Game.fmt(up.gold)} 金幣</div></div>
         <button id="op-up" ${!maxQ && Game.canUpgrade(it) ? '' : 'disabled'}>升品</button></div>
-      <div class="forge-op"><div>重鑄詞綴
-          <div class="cost">${Game.fmt(Game.rerollCost(it))} 星塵</div></div>
-        <button id="op-re" ${st.dust >= Game.rerollCost(it) ? '' : 'disabled'}>重鑄</button></div>
+      ${(() => {
+        this.forgeLocks = this.forgeLocks || new Set();
+        const k = [...this.forgeLocks].filter(i => i < it.aff.length).length;
+        const lockG = Game.lockCost(k);
+        const maxN = Math.max(it.aff.length, DATA.affixCount[it.q]);
+        const canRe = st.dust >= Game.rerollCost(it) && st.gold >= lockG && k < maxN;
+        return `<div class="forge-op"><div>重鑄詞綴${k ? `（鎖 ${k} 條）` : ''}
+            <div class="cost">${Game.fmt(Game.rerollCost(it))} 星塵${k ? ` + ${Game.fmt(lockG)} 金幣` : ''}</div></div>
+          <button id="op-re" ${canRe ? '' : 'disabled'}>重鑄</button></div>
+        ${it.aff.length ? `<div class="aff-locks">${it.aff.map(([kk, v], i) =>
+          `<button data-lock="${i}" class="${this.forgeLocks.has(i) ? 'accent' : ''}">${this.forgeLocks.has(i) ? '🔒' : '🔓'} ${DATA.affixes[kk].name}+${v}${DATA.affixes[kk].unit}</button>`).join('')}</div>
+          <div class="hint" style="margin-bottom:6px">點詞綴上鎖：重鑄時保留該條（原位原值），每鎖一條金幣費用 ×4</div>` : ''}`;
+      })()}
       <div class="forge-op"><div>鑿孔 ${it.sockets >= 3 ? '<span class="hint">已達3孔</span>' : `（${it.sockets}/3）`}
           <div class="cost">${Game.fmt(Game.socketCost(it))} 星塵</div></div>
         <button id="op-so" ${it.sockets < 3 && st.dust >= Game.socketCost(it) ? '' : 'disabled'}>鑿孔</button></div>
@@ -1159,7 +1170,12 @@ const UI = {
     const up = p.querySelector('#op-up');
     if (up) up.onclick = () => { Game.upgrade(it); rebind(); };
     const re = p.querySelector('#op-re');
-    if (re) re.onclick = () => { Game.reroll(it); rebind(); };
+    if (re) re.onclick = () => { Game.reroll(it, [...(this.forgeLocks || [])]); rebind(); };
+    p.querySelectorAll('[data-lock]').forEach(b => b.onclick = () => {
+      const i = +b.dataset.lock;
+      if (this.forgeLocks.has(i)) this.forgeLocks.delete(i); else this.forgeLocks.add(i);
+      this.renderPanel();
+    });
     const so = p.querySelector('#op-so');
     if (so) so.onclick = () => { Game.addSocket(it); rebind(); };
     p.querySelectorAll('[data-unsocket]').forEach(b => b.onclick = () => {
@@ -1188,6 +1204,7 @@ const UI = {
       this.forgeSel = parts[0] === 'inv'
         ? { loc: 'inv', id: +parts[1] }
         : { loc: 'equip', cls: parts[1], slot: parts[2] };
+      this.forgeLocks = new Set();
       this.closeModal(); this.renderPanel();
     });
     m.querySelector('[data-close]').onclick = () => this.closeModal();

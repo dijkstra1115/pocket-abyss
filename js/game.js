@@ -773,20 +773,35 @@ const Game = {
     return Math.ceil((6 + item.lv * 0.4) * Math.pow(1.7, item.q) * this.forgeDiscount());
   },
 
-  reroll(item) {
-    const cost = this.rerollCost(item);
-    if (this.state.dust < cost) return false;
-    this.state.dust -= cost;
+  /* 鎖詞綴費用（金幣、每次重鑄收取）：錨定歷史最深樓層的單殺金幣，
+     每多鎖一條 ×4 —— 鎖越多指數走升，跟金幣收入曲線同步不貶值 */
+  lockCost(k) {
+    if (k <= 0) return 0;
+    return Math.ceil(this.killGold(this.state.maxFloorEver) * 60 * Math.pow(4, k - 1) * this.forgeDiscount());
+  },
+
+  reroll(item, lockIdx) {
+    const locks = [...new Set(lockIdx || [])].filter(i => i >= 0 && i < item.aff.length);
     const n = Math.max(item.aff.length, DATA.affixCount[item.q]);
-    const keys = [...DATA.affixKeys];
-    item.aff = [];
-    for (let i = 0; i < n && keys.length; i++) {
+    if (locks.length > 0 && locks.length >= n) return false; /* 全鎖沒東西可骰 */
+    const cost = this.rerollCost(item);
+    const gCost = this.lockCost(locks.length);
+    if (this.state.dust < cost || this.state.gold < gCost) return false;
+    this.state.dust -= cost;
+    this.state.gold -= gCost;
+    /* 鎖定的保留原位原值，其餘位置重骰（不與鎖定者重複） */
+    const newAff = new Array(n);
+    for (const i of locks) newAff[i] = item.aff[i];
+    const keys = DATA.affixKeys.filter(k => !locks.some(i => item.aff[i][0] === k));
+    for (let i = 0; i < n; i++) {
+      if (newAff[i] || !keys.length) continue;
       const ki = Math.floor(Math.random() * keys.length);
       const k = keys.splice(ki, 1)[0];
       const a = DATA.affixes[k];
       const v = Math.round((a.min + Math.random() * (a.max - a.min)) * (1 + item.q * 0.12) * 10) / 10;
-      item.aff.push([k, v]);
+      newAff[i] = [k, v];
     }
+    item.aff = newAff.filter(Boolean);
     this.dirty();
     return true;
   },
