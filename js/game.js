@@ -933,6 +933,21 @@ const Game = {
     return true;
   },
 
+  /* 移動樓層：僅限本輪已抵達過的深度；往淺層移動自動駐留方便定點刷 */
+  gotoFloor(f) {
+    const st = this.state;
+    f = Math.floor(f);
+    if (!(f >= 1) || f > st.runMaxFloor || f === st.floor) return false;
+    st.floor = f;
+    st.failStreak = 0;
+    if (f < st.runMaxFloor) st.settings.autoAdvance = false;
+    const b = this.battle;
+    if (b) { b.wave = 0; b.mobs = []; b.pauseT = 0.5; }
+    this.dirty();
+    this.save();
+    return true;
+  },
+
   /* ============ 昇華 ============ */
   emberGain() {
     const m = this.state.runMaxFloor;

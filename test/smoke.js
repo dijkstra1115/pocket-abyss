@@ -210,6 +210,17 @@ if (it && it.sockets > 0) {
   assert(typeof r.c === 'number', '批次分解回報退核數');
 }
 
+/* --- 移動樓層 --- */
+{
+  const f0 = s.floor, rm = s.runMaxFloor;
+  assert(Game.gotoFloor(rm + 5) === false, '不能跳到未抵達的深度');
+  assert(Game.gotoFloor(Math.max(1, f0 - 5)), '往淺層移動成功');
+  assert(s.floor === Math.max(1, f0 - 5) && s.settings.autoAdvance === false, '淺層自動駐留');
+  assert(Game.gotoFloor(rm), '回到最深');
+  assert(s.floor === rm, '樓層回到本輪最深');
+  s.settings.autoAdvance = true;
+}
+
 /* --- 鎖詞綴重鑄 --- */
 {
   const itL = { id: 93001, base: DATA.bases[0].id, slot: DATA.bases[0].slot, lv: 30, q: 7,

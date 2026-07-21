@@ -194,6 +194,7 @@ button.sel { border-color: var(--border-hi); background: #2e2450; color: #fff; }
 }
 .stat-grid b { color: var(--text); font-weight: normal; }
 .stat-grid .z, .stat-grid .z b { color: #4a4560; }
+#floor-label { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
 
 /* ---------- 背包 ---------- */
 .bag-tools { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; align-items: center; }

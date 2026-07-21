@@ -109,6 +109,7 @@ const UI = {
       this.renderTop();
     };
     document.getElementById('mini-btn').onclick = () => this.toggleMini();
+    document.getElementById('floor-label').onclick = () => this.showFloorJump();
     document.getElementById('dmg-toggle').onclick = () => {
       Game.state.settings.dmgMeter = !Game.state.settings.dmgMeter;
       this.updateDmgPanel();
@@ -1108,6 +1109,41 @@ const UI = {
       if (!Game.unequip(cls, slot)) this.toast('背包已滿，無法卸下');
       this.closeModal(); this.renderPanel();
     };
+    m.querySelector('[data-close]').onclick = () => this.closeModal();
+  },
+
+  /* ---------- 移動樓層 ---------- */
+  showFloorJump() {
+    const st = Game.state;
+    const m = this.modal(`<h3>移動樓層</h3>
+      <div class="hint">可移動範圍：第 1 ～ ${st.runMaxFloor} 層（本輪最深）<br>
+        移到較淺的樓層會自動改為駐留，方便定點刷素材</div>
+      <div class="set-row" style="margin-top:6px"><span>目標樓層</span>
+        <span><button data-fj="-10">−10</button>
+        <input id="fj-in" type="number" min="1" max="${st.runMaxFloor}" value="${st.floor}"
+          inputmode="numeric" style="width:64px;text-align:center">
+        <button data-fj="10">＋10</button></span></div>
+      <div class="btn-row" style="margin-top:6px">
+        <button id="fj-go" class="accent">前往</button>
+        <button id="fj-max" ${st.floor >= st.runMaxFloor ? 'disabled' : ''}>回到最深（${st.runMaxFloor}）</button></div>
+      <div class="close-row"><button data-close>關閉</button></div>`);
+    const inp = m.querySelector('#fj-in');
+    const clamp = v => Math.max(1, Math.min(st.runMaxFloor, Math.floor(v || 1)));
+    m.querySelectorAll('[data-fj]').forEach(b => b.onclick = () => {
+      inp.value = clamp(+inp.value + +b.dataset.fj);
+    });
+    const go = (f) => {
+      if (Game.gotoFloor(f)) {
+        this.toast(f < st.runMaxFloor
+          ? `已駐留在第 ${f} 層（點「駐留中」可恢復推進）`
+          : `回到第 ${f} 層`);
+        this.closeModal(); this.renderTop(); this.renderPanel();
+      } else {
+        this.toast('樓層無效（只能移動到本輪已抵達的深度）');
+      }
+    };
+    m.querySelector('#fj-go').onclick = () => go(clamp(+inp.value));
+    m.querySelector('#fj-max').onclick = () => go(st.runMaxFloor);
     m.querySelector('[data-close]').onclick = () => this.closeModal();
   },
 
