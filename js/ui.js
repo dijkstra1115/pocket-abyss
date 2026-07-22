@@ -878,7 +878,7 @@ const UI = {
         <div class="equip-row">${DATA.slotOrder.map(slot => {
           const it = h.equip[slot];
           if (!it) return `<div class="eq-slot" data-eq="${cls}:${slot}"><span class="sl">${DATA.slots[slot]}</span><br>—</div>`;
-          return `<div class="eq-slot" data-eq="${cls}:${slot}"><span class="sl">${DATA.slots[slot]} Lv${it.lv}</span><br>
+          return `<div class="eq-slot" data-eq="${cls}:${slot}"><span class="sl">${DATA.slots[slot]} ${this.tierTag(it)} Lv${it.lv}</span><br>
             <span style="color:${DATA.qualities[it.q].color}">${Game.itemName(it)}</span></div>`;
         }).join('')}</div>
       </div>`;
@@ -916,9 +916,14 @@ const UI = {
   },
 
   /* ---------- 物品共用 ---------- */
+  tierTag(it) {
+    const b = Game.baseOf(it);
+    return b ? `T${b.tier}` : '';
+  },
+
   itemChipHTML(it, attr) {
     const q = DATA.qualities[it.q];
-    const bits = [`Lv${it.lv}`];
+    const bits = [this.tierTag(it), `Lv${it.lv}`].filter(Boolean);
     if (it.aff.length) bits.push(`詞${it.aff.length}`);
     if (it.sockets) bits.push(`孔${it.gems.length}/${it.sockets}`);
     return `<div class="item-chip" ${attr}>
@@ -974,7 +979,7 @@ const UI = {
       aff = it.aff.slice(0, 3).map(([k, v]) => `${DATA.affixes[k].name}+${v}%`).join(' ')
         + (it.aff.length > 3 ? ' …' : '');
     }
-    const bits = [`Lv${it.lv}`];
+    const bits = [this.tierTag(it), `Lv${it.lv}`].filter(Boolean);
     if (it.sockets) bits.push(`孔${it.gems.length}/${it.sockets}`);
     if (tag) bits.unshift(tag);
     return `<div class="item-row" ${attr || ''}>
@@ -988,7 +993,7 @@ const UI = {
     const q = DATA.qualities[it.q];
     const bs = Game.itemBaseStats(it);
     let html = `<div class="item-detail">
-      <div class="inm" style="color:${q.color}">${q.name} · ${Game.baseOf(it).name} <span class="hint">Lv${it.lv} ${DATA.slots[it.slot]}</span></div>`;
+      <div class="inm" style="color:${q.color}">${q.name} · ${Game.baseOf(it).name} <span class="hint">${this.tierTag(it)} · Lv${it.lv} ${DATA.slots[it.slot]}</span></div>`;
     if (bs.atk) html += `<div class="row">攻擊 +${Game.fmt(bs.atk)}</div>`;
     if (bs.hp) html += `<div class="row">生命 +${Game.fmt(bs.hp)}</div>`;
     if (bs.def) html += `<div class="row">防禦 +${Game.fmt(bs.def)}</div>`;
