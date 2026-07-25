@@ -210,6 +210,30 @@ if (it && it.sockets > 0) {
   assert(typeof r.c === 'number', '批次分解回報退核數');
 }
 
+/* --- 卸下所有已裝備星核 --- */
+{
+  const gi = { id: 91003, base: DATA.bases[0].id, slot: DATA.bases[0].slot, lv: 5, q: 3, aff: [], sockets: 2, gems: ['flame_1', 'sage_0'] };
+  s.inventory.push(gi);
+  const cost = Game.unsocketAllCost();
+  assert(cost >= Game.unsocketCost(1) + Game.unsocketCost(0), '全卸費用＝逐顆取回費加總');
+  const total = Game.socketedItems().reduce((t, i2) => t + i2.gems.length, 0);
+  const d0 = s.dust;
+  s.dust = cost - 1;
+  assert(Game.unsocketAll() === 0 && gi.gems.length === 2, '星塵不足整批不執行');
+  s.dust = cost;
+  const returns = {};
+  for (const i2 of Game.socketedItems())
+    for (const g of i2.gems) returns[g] = (returns[g] || 0) + 1;
+  const before = {};
+  for (const k in returns) before[k] = s.cores[k] || 0;
+  assert(Game.unsocketAll() === total, '全部卸下顆數正確');
+  assert(s.dust === 0, '費用照算扣星塵');
+  assert(Game.socketedItems().length === 0, '所有裝備插槽清空');
+  assert(Object.keys(returns).every(k => (s.cores[k] || 0) === before[k] + returns[k]), '星核退回庫存');
+  s.dust = d0;
+  s.inventory = s.inventory.filter(i => i.id !== 91003);
+}
+
 /* --- 移動樓層 --- */
 {
   const f0 = s.floor, rm = s.runMaxFloor;

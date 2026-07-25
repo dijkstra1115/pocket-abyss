@@ -1326,7 +1326,15 @@ const UI = {
     const st = Game.state;
     const keys = Object.keys(st.cores);
     let html = `<div class="hint">Boss 有機率掉落星核；3 顆同系同階可熔合升階。<br>鑲嵌需要裝備先有插槽（鍛造→鑿孔）。</div>`;
-    if (!keys.length) return html + '<div class="hint" style="margin-top:8px">目前沒有星核，去打 Boss 吧！</div>';
+    const socketed = Game.socketedItems().reduce((s, it) => s + it.gems.length, 0);
+    if (socketed) {
+      const cost = Game.unsocketAllCost();
+      html += `<div class="forge-op" style="margin-top:8px"><div>已鑲嵌 ${socketed} 顆
+          <div class="cost">${Game.fmt(cost)} 星塵</div></div>
+        <button id="core-unsocket-all" ${st.dust >= cost ? '' : 'disabled'}>卸下所有已裝備星核</button></div>`;
+    }
+    if (!keys.length)
+      return html + (socketed ? '' : '<div class="hint" style="margin-top:8px">目前沒有星核，去打 Boss 吧！</div>');
     for (const type of DATA.coreTypeOrder) {
       const ct = DATA.coreTypes[type];
       const tiers = [];
@@ -1357,6 +1365,12 @@ const UI = {
   },
 
   bindCore(p) {
+    const all = p.querySelector('#core-unsocket-all');
+    if (all) all.onclick = () => {
+      const n = Game.unsocketAll();
+      if (n) this.toast(`已卸下 ${n} 顆星核`);
+      this.renderPanel(); this.renderTop();
+    };
     p.querySelectorAll('[data-fuse]').forEach(b => b.onclick = () => {
       const [type, tier] = b.dataset.fuse.split('_');
       if (Game.fuseCore(type, +tier)) this.toast('熔合成功！');

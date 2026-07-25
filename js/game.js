@@ -878,6 +878,46 @@ const Game = {
     return true;
   },
 
+  /* 所有鑲有星核的裝備（英雄身上 + 背包） */
+  socketedItems() {
+    const st = this.state;
+    const list = [];
+    for (const cls in st.heroes) {
+      const eq = st.heroes[cls].equip;
+      for (const slot in eq) {
+        const it = eq[slot];
+        if (it && it.gems.length) list.push(it);
+      }
+    }
+    for (const it of st.inventory) if (it.gems.length) list.push(it);
+    return list;
+  },
+
+  /* 全部卸下：費用＝逐顆取回費加總，星塵不足整批不執行 */
+  unsocketAllCost() {
+    let cost = 0;
+    for (const it of this.socketedItems())
+      for (const g of it.gems) cost += this.unsocketCost(+g.split('_')[1]);
+    return cost;
+  },
+
+  unsocketAll() {
+    const st = this.state;
+    const cost = this.unsocketAllCost();
+    if (!cost || st.dust < cost) return 0;
+    st.dust -= cost;
+    let n = 0;
+    for (const it of this.socketedItems()) {
+      for (const key of it.gems) {
+        st.cores[key] = (st.cores[key] || 0) + 1;
+        n++;
+      }
+      it.gems = [];
+    }
+    this.dirty();
+    return n;
+  },
+
   /* ============ 英雄解鎖 / 隊伍 ============ */
   canUnlock(cls) {
     const c = DATA.classes[cls];
